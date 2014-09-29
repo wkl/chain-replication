@@ -16,6 +16,8 @@ Mac OS X:
 	$ brew install protobuf
 Ubuntu:
 	$ sudo apt-get install libboost-all-dev
+Fedora:
+	$ sudo yum install boost-devel
 
 2. Build from git repo
 
