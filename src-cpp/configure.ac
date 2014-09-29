@@ -15,7 +15,7 @@ AX_CXX_COMPILE_STDCXX_11([noext], [mandatory])
 # Checks for libraries.
 LT_INIT
 AC_CONFIG_MACRO_DIR([m4])
-BOOST_REQUIRE([1.54])
+BOOST_REQUIRE([1.53])
 BOOST_PROGRAM_OPTIONS # will slow ./configure
 
 # Global flags

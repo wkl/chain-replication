@@ -14,6 +14,8 @@ INSTRUCTIONS
 Mac OS X:
 	$ brew install boost
 	$ brew install protobuf
+Ubuntu:
+	$ sudo apt-get install libboost-all-dev
 
 2. Build from git repo
 
