@@ -17,6 +17,8 @@ LT_INIT
 AC_CONFIG_MACRO_DIR([m4])
 BOOST_REQUIRE([1.53])
 BOOST_PROGRAM_OPTIONS # will slow ./configure
+BOOST_SYSTEM
+BOOST_ASIO
 
 # Global flags
 my_CXXFLAGS="-g"
