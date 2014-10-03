@@ -5,7 +5,7 @@ AC_PREREQ([2.69])
 AC_INIT([chain-replication], [0.1], [{kelong.wang,dandan.zheng}@stonybrook.edu])
 
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
-AC_CONFIG_SRCDIR([server/server.cc])
+#AC_CONFIG_SRCDIR([server/server.cc])
 AC_CONFIG_HEADERS([config.h])
 
 # Checks for programs.
@@ -33,5 +33,6 @@ AC_SUBST([my_CPPFLAGS])
 # Checks for library functions.
 
 AC_CONFIG_FILES([Makefile
-                 server/Makefile])
+                 server/Makefile
+		 client/Makefile])
 AC_OUTPUT
