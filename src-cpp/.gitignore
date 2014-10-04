@@ -56,6 +56,7 @@ Makefile
 
 .deps
 .libs
+.dirstamp
 
 libtool.m4
 ltoptions.m4
