@@ -1,13 +1,16 @@
 bin_PROGRAMS = client
-client_SOURCES = client.cc
+client_SOURCES = \
+	client.cc
+nodist_client_SOURCES = \
+	$(top_srcdir)/common/message.pb.cc
 
-client_CPPFLAGS = ${my_CPPFLAGS} $(BOOST_CPPFLAGS)
+client_CPPFLAGS = \
+	${my_CPPFLAGS} \
+	$(BOOST_CPPFLAGS) \
+	-I$(top_srcdir)/common/
 client_CXXFLAGS = ${my_CXXFLAGS}
-client_LDFLAGS = \
-	$(BOOST_PROGRAM_OPTIONS_LDFLAGS) \
-	$(BOOST_SYSTEM_LDFLAGS) \
-	$(BOOST_ASIO_LDFLAGS)
 client_LDADD = \
 	$(BOOST_PROGRAM_OPTIONS_LIBS) \
 	$(BOOST_SYSTEM_LIBS) \
-	$(BOOST_ASIO_LIBS)
+	$(BOOST_ASIO_LIBS) \
+	$(PROTOBUF_LIBS)

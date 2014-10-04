@@ -15,6 +15,18 @@ AX_CXX_COMPILE_STDCXX_11([noext], [mandatory])
 # Checks for libraries.
 LT_INIT
 AC_CONFIG_MACRO_DIR([m4])
+
+# protobuf
+PKG_CHECK_MODULES(PROTOBUF, protobuf >= 2.5.0)
+AC_SUBST(PROTOBUF_LIBS)
+AC_SUBST(PROTOBUF_CFLAGS)
+AC_SUBST(PROTOBUF_VERSION)
+
+AC_CHECK_PROG([PROTOC], [protoc], [protoc])
+AS_IF([test "x${PROTOC}" == "x"],
+	[AC_MSG_ERROR([ProtoBuf compiler "protoc" not found.])])
+
+# boost
 BOOST_REQUIRE([1.53])
 BOOST_PROGRAM_OPTIONS # will slow ./configure
 BOOST_SYSTEM
@@ -33,6 +45,7 @@ AC_SUBST([my_CPPFLAGS])
 # Checks for library functions.
 
 AC_CONFIG_FILES([Makefile
+		 common/Makefile
                  server/Makefile
 		 client/Makefile])
 AC_OUTPUT

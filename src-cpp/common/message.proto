@@ -1,0 +1,16 @@
+message Request {
+	enum RequestType {
+		QUERY = 0;
+		DEPOSIT = 1;
+		WITHDRAW = 2;
+	}
+	enum Outcome {
+		PROCESSED = 0;
+		INCONSISTENT_WITH_HISTORY = 1;
+		INSUFFICIENT_FUNDS = 2;
+	}
+	required string req_id = 1;
+	required RequestType type = 2;
+	optional Outcome outcome = 3;
+	optional float balance = 4;
+}

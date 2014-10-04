@@ -1,3 +1,3 @@
 ACLOCAL_AMFLAGS = -I m4
 
-SUBDIRS = server client
+SUBDIRS = common server client

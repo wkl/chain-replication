@@ -5,6 +5,7 @@
 
 #include <boost/program_options.hpp>
 #include <boost/asio.hpp>
+#include "message.pb.h"
 
 using boost::asio::ip::udp;
 using boost::asio::ip::tcp;
