@@ -13,7 +13,7 @@ void UDPLoop::run_forever() {
     std::cout << "UDP Server received: " << msg.DebugString() << std::endl;
 
     // echo back; to be removed
-    sock.send_to(asio::buffer(data, length), sender_endpoint);
+    // sock.send_to(asio::buffer(data, length), sender_endpoint);
     handle_msg(msg);
   }
 }
@@ -169,6 +169,7 @@ bool send_msg_udp(Node target, const Message_MessageType msg_type,
   s.send_to(asio::buffer(buf, buf_size), endpoint);
 
   // reply test, to be removed
+  /*
   char reply[buf_size];
   udp::endpoint server_endpoint;
   size_t reply_length =
@@ -176,6 +177,7 @@ bool send_msg_udp(Node target, const Message_MessageType msg_type,
   std::cout << "Reply is: ";
   std::cout.write(reply, reply_length);
   std::cout << std::endl;
+  */
 
   return true;
 }
