@@ -31,6 +31,9 @@ const int MSG_HEADER_SIZE = 4;
 const int UDP_MAX_LENGTH = 512;
 
 bool decode_msg(pb::Message &msg, char *buf, uint32_t buf_size);
+uint32_t decode_hdr(char *buf);
+bool decode_body(pb::Message &msg, char *buf, uint32_t buf_size);
+bool encode_msg(const pb::Message &msg, char *buf, size_t buf_size);
 
 class UDPLoop {
  public:
@@ -48,6 +51,7 @@ class UDPLoop {
       assert(decode_msg(msg, data, length));
       std::cout << "UDP Server received: " << msg.DebugString() << std::endl;
 
+      // echo back; to be removed
       sock.send_to(asio::buffer(data, length), sender_endpoint);
       handle_msg(msg);
     }
@@ -57,6 +61,60 @@ class UDPLoop {
 
  private:
   int port_;
+};
+
+class TCPLoop {
+ public:
+  TCPLoop(int port) : port(port) {}
+
+  void operator()() {
+    boost::asio::io_service io_service;
+    tcp::acceptor a(io_service, tcp::endpoint(tcp::v4(), port));
+    for (;;) {
+      tcp::socket sock(io_service);
+      a.accept(sock);
+      std::thread(&TCPLoop::session, this, std::move(sock)).detach();
+    }
+  }
+
+  void session(tcp::socket sock) {
+    try {
+      // read header (the body size)
+      char header[MSG_HEADER_SIZE];
+      boost::system::error_code error;
+      size_t length =
+          asio::read(sock, asio::buffer(header, MSG_HEADER_SIZE), error);
+      if (error == asio::error::eof)
+        return;  // Connection closed cleanly by peer.
+      else if (error)
+        throw boost::system::system_error(error);  // Some other error.
+      assert(length == MSG_HEADER_SIZE);
+
+      // read body
+      size_t body_size = decode_hdr(header);
+      char body[body_size];
+      length = asio::read(sock, asio::buffer(body, body_size), error);
+      if (error == asio::error::eof)
+        return;  // Connection closed cleanly by peer.
+      else if (error)
+        throw boost::system::system_error(error);  // Some other error.
+      assert(length == body_size);
+
+      // decode msg
+      Message msg;
+      decode_body(msg, body, body_size);
+      std::cout << "TCP message received: " << msg.DebugString() << std::endl;
+
+      handle_msg(msg);
+    } catch (std::exception &e) {
+      std::cerr << "Exception in thread: " << e.what() << std::endl;
+    }
+  }
+
+  virtual void handle_msg(Message &msg) = 0;
+
+ private:
+  int port;
 };
 
 // prefix serialized message(body) with its size

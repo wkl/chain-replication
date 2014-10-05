@@ -1,11 +1,5 @@
 #include "server.h"
 
-#include <boost/asio.hpp>
-namespace asio = boost::asio;
-using asio::ip::udp;
-using asio::ip::tcp;
-using asio::ip::address;
-
 #include <boost/program_options.hpp>
 namespace po = boost::program_options;
 
@@ -27,62 +21,23 @@ class ChainServer {
   std::string bank_id;
 };
 
-class TCPLoop {
- public:
-  TCPLoop(int port) : port(port) {}
-
-  void operator()() {
-    boost::asio::io_service io_service;
-    tcp::acceptor a(io_service, tcp::endpoint(tcp::v4(), port));
-    for (;;) {
-      tcp::socket sock(io_service);
-      a.accept(sock);
-      std::thread(&TCPLoop::session, this, std::move(sock)).detach();
-    }
-  }
-
-  void session(tcp::socket sock) {
-    try {
-      // read header (the body size)
-      char header[MSG_HEADER_SIZE];
-      boost::system::error_code error;
-      size_t length =
-          asio::read(sock, asio::buffer(header, MSG_HEADER_SIZE), error);
-      if (error == asio::error::eof)
-        return;  // Connection closed cleanly by peer.
-      else if (error)
-        throw boost::system::system_error(error);  // Some other error.
-      assert(length == MSG_HEADER_SIZE);
-
-      // read body
-      size_t body_size = decode_hdr(header);
-      char body[body_size];
-      length = asio::read(sock, asio::buffer(body, body_size), error);
-      if (error == asio::error::eof)
-        return;  // Connection closed cleanly by peer.
-      else if (error)
-        throw boost::system::system_error(error);  // Some other error.
-      assert(length == body_size);
-
-      // decode msg
-      Message msg;
-      decode_body(msg, body, body_size);
-
-      std::cout << "TCP message received: " << msg.DebugString() << std::endl;
-    } catch (std::exception& e) {
-      std::cerr << "Exception in thread: " << e.what() << std::endl;
-    }
-  }
-
- private:
-  int port;
-};
-
 void ChainServerUDPLoop::handle_msg(Message& msg) {
   switch (msg.type()) {
     case Message::REQUEST:
       assert(msg.has_request());
       cs->forward_request(msg.request());
+      break;
+    default:
+      std::cerr << "no handler for message type (" << msg.type() << ")"
+                << std::endl;
+      break;
+  }
+}
+
+void ChainServerTCPLoop::handle_msg(Message& msg) {
+  switch (msg.type()) {
+    case Message::REQUEST:
+      assert(msg.has_request());
       break;
     default:
       std::cerr << "no handler for message type (" << msg.type() << ")"
@@ -112,7 +67,7 @@ int main(int argc, char* argv[]) {
     int server_port = 50001;
     if (vm.count("second")) server_port = 50002;
     ChainServerUDPLoop udp_loop(server_port);
-    TCPLoop tcp_loop(server_port);
+    ChainServerTCPLoop tcp_loop(server_port);
     std::thread udp_thread(udp_loop);
     std::thread tcp_thread(tcp_loop);
     udp_thread.join();
