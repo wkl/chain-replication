@@ -17,7 +17,7 @@ class Client {
       req.set_type(Request::QUERY);
       req.set_req_id("boa.1.1");
       Node head("127.0.0.1", 50001);
-      send_msg_tcp(head, req);
+      send_msg_udp(head, Message::REQUEST, req);
     } catch (std::exception& e) {
       std::cerr << "error: " << e.what() << std::endl;
     }

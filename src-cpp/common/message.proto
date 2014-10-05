@@ -1,3 +1,13 @@
+// generic message
+message Message {
+	enum MessageType {
+		REQUEST = 0;
+	//	ACKNOWLEDGE = 1;
+	}
+	required MessageType type = 1;
+	optional Request request = 2;
+}
+
 message Request {
 	enum RequestType {
 		QUERY = 0;

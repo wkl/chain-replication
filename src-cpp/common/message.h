@@ -8,6 +8,8 @@
 
 #include <string>
 
+#include "common.h"
+
 #include "message.pb.h"
 namespace pb = google::protobuf;
 
@@ -42,14 +44,16 @@ class UDPLoop {
       udp::endpoint sender_endpoint;
       size_t length = sock.receive_from(asio::buffer(data, UDP_MAX_LENGTH),
                                         sender_endpoint);
-      Request req;
-      assert(decode_msg(req, data, length));
-      std::cout << "UDP Server received: " << req.DebugString() << std::endl;
+      Message msg;
+      assert(decode_msg(msg, data, length));
+      std::cout << "UDP Server received: " << msg.DebugString() << std::endl;
 
       sock.send_to(asio::buffer(data, length), sender_endpoint);
-      // cs->forward_request(data, length);
+      handle_msg(msg);
     }
   }
+
+  virtual void handle_msg(Message &msg) = 0;
 
  private:
   int port_;
@@ -110,34 +114,58 @@ bool decode_msg(pb::Message &msg, char *buf, uint32_t buf_size) {
   return msg.ParseFromCodedStream(&cis);
 }
 
-bool send_msg_tcp(Node target, Request &req) {
+void prepare_msg(Message &msg, const Message_MessageType &msg_type,
+                 const pb::Message &sub_msg) {
+  msg.set_type(msg_type);
+  switch (msg_type) {
+    case Message::REQUEST: {
+      Request *tmp = new Request();
+      tmp->CopyFrom(sub_msg);          // make a copy
+      msg.set_allocated_request(tmp);  // msg takes ownership of tmp
+      break;
+    }
+    default:
+      assert(0);  // should not reach here
+      break;
+  }
+}
+
+bool send_msg_tcp(Node target, const Message_MessageType msg_type,
+                  const pb::Message &sub_msg) {
   asio::io_service io_service;
   tcp::socket s(io_service);
   tcp::endpoint endpoint(address::from_string(target.ip()), target.port());
   s.connect(endpoint);
 
-  size_t buf_size = req.ByteSize() + 4;
+  Message msg;
+  prepare_msg(msg, msg_type, sub_msg);
+
+  size_t buf_size = msg.ByteSize() + 4;
   char buf[buf_size];
-  encode_msg(req, buf, buf_size);
-  std::cout << "Sending TCP message..." << std::endl;
+  encode_msg(msg, buf, buf_size);
+  std::cout << "Sending TCP message: " << msg.DebugString() << std::endl;
   asio::write(s, asio::buffer(buf, buf_size));
 
   return true;
 }
 
-bool send_msg_udp(Node target, Request &req) {
+bool send_msg_udp(Node target, const Message_MessageType msg_type,
+                  const pb::Message &sub_msg) {
   asio::io_service io_service;
   udp::socket s(io_service, udp::endpoint(udp::v4(), 0));
   udp::endpoint endpoint(address::from_string(target.ip()), target.port());
 
-  size_t buf_size = req.ByteSize() + 4;
+  Message msg;
+  prepare_msg(msg, msg_type, sub_msg);
+
+  size_t buf_size = msg.ByteSize() + 4;
   assert(buf_size < UDP_MAX_LENGTH);
   char buf[buf_size];
-  encode_msg(req, buf, buf_size);
-  std::cout << "Sending UDP message..." << std::endl;
+  encode_msg(msg, buf, buf_size);
+  std::cout << "Sending UDP message: " << msg.DebugString() << std::endl;
   s.send_to(asio::buffer(buf, buf_size), endpoint);
 
-  // reply test
+  // reply test, to be removed
   char reply[buf_size];
   udp::endpoint server_endpoint;
   size_t reply_length =
@@ -148,4 +176,5 @@ bool send_msg_udp(Node target, Request &req) {
 
   return true;
 }
+
 #endif

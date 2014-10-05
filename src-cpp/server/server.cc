@@ -1,10 +1,4 @@
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <thread>
-
-#include "common.h"
-#include "message.h"
+#include "server.h"
 
 #include <boost/asio.hpp>
 namespace asio = boost::asio;
@@ -24,14 +18,9 @@ class ChainServer {
     std::cout << bank_id << std::endl;
   }
 
-  void forward_request(char* data, int length) {
-    boost::asio::io_service io_service;
-
-    tcp::socket s(io_service);
-    tcp::endpoint endpoint(address::from_string("127.0.0.1"), 50002);
-    s.connect(endpoint);
-
-    boost::asio::write(s, boost::asio::buffer(data, length));
+  void forward_request(const Request& req) {
+    std::cout << "forwarding request..." << std::endl;
+    send_msg_tcp(Node("127.0.0.1", 50002), Message::REQUEST, req);
   }
 
  private:
@@ -76,18 +65,31 @@ class TCPLoop {
       assert(length == body_size);
 
       // decode msg
-      Request req;
-      decode_body(req, body, body_size);
+      Message msg;
+      decode_body(msg, body, body_size);
 
-      std::cout << "TCP server received: " << req.DebugString() << std::endl;
+      std::cout << "TCP message received: " << msg.DebugString() << std::endl;
     } catch (std::exception& e) {
-      std::cerr << "Exception in thread: " << e.what() << "\n";
+      std::cerr << "Exception in thread: " << e.what() << std::endl;
     }
   }
 
  private:
   int port;
 };
+
+void ChainServerUDPLoop::handle_msg(Message& msg) {
+  switch (msg.type()) {
+    case Message::REQUEST:
+      assert(msg.has_request());
+      cs->forward_request(msg.request());
+      break;
+    default:
+      std::cerr << "no handler for message type (" << msg.type() << ")"
+                << std::endl;
+      break;
+  }
+}
 
 int main(int argc, char* argv[]) {
   try {
@@ -109,7 +111,7 @@ int main(int argc, char* argv[]) {
 
     int server_port = 50001;
     if (vm.count("second")) server_port = 50002;
-    UDPLoop udp_loop(server_port);
+    ChainServerUDPLoop udp_loop(server_port);
     TCPLoop tcp_loop(server_port);
     std::thread udp_thread(udp_loop);
     std::thread tcp_thread(tcp_loop);
