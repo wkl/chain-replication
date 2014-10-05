@@ -3,13 +3,16 @@
 #include <string>
 #include <thread>
 
-#include <boost/program_options.hpp>
-#include <boost/asio.hpp>
+#include "common.h"
 #include "message.pb.h"
 
-using boost::asio::ip::udp;
-using boost::asio::ip::tcp;
-using boost::asio::ip::address;
+#include <boost/asio.hpp>
+namespace asio = boost::asio;
+using asio::ip::udp;
+using asio::ip::tcp;
+using asio::ip::address;
+
+#include <boost/program_options.hpp>
 namespace po = boost::program_options;
 
 const int max_length = 1024;
@@ -49,8 +52,12 @@ class UDPLoop {
       udp::endpoint sender_endpoint;
       size_t length = sock.receive_from(boost::asio::buffer(data, max_length),
                                         sender_endpoint);
-      std::cout << "UDP server received:" << std::string(data, length)
-                << std::endl;
+      // std::cout << "UDP server received:" << std::string(data, length)
+      //          << std::endl;
+      Request req;
+      assert(decode_msg(req, data, length));
+      std::cout << "UDP Server received: " << req.DebugString() << std::endl;
+
       sock.send_to(boost::asio::buffer(data, length), sender_endpoint);
       cs->forward_request(data, length);
     }
@@ -76,20 +83,31 @@ class TCPLoop {
 
   void session(tcp::socket sock) {
     try {
-      for (;;) {
-        char data[max_length];
-
+        // read header (the body size)
+        char header[MSG_HEADER_SIZE];
         boost::system::error_code error;
-        size_t length = sock.read_some(boost::asio::buffer(data), error);
-        if (error == boost::asio::error::eof)
-          break;  // Connection closed cleanly by peer.
+        size_t length = asio::read(sock, asio::buffer(header, MSG_HEADER_SIZE), error);
+        if (error == asio::error::eof)
+          return;  // Connection closed cleanly by peer.
         else if (error)
           throw boost::system::system_error(error);  // Some other error.
+        assert(length == MSG_HEADER_SIZE);
 
-        std::cout << "TCP server received:" << std::string(data, length)
-                  << std::endl;
-        boost::asio::write(sock, boost::asio::buffer(data, length));
-      }
+        // read body
+        size_t body_size = decode_hdr(header);
+        char body[body_size];
+        length = asio::read(sock, asio::buffer(body, body_size), error);
+        if (error == asio::error::eof)
+          return;  // Connection closed cleanly by peer.
+        else if (error)
+          throw boost::system::system_error(error);  // Some other error.
+        assert(length == body_size);
+
+        // decode msg
+        Request req;
+        decode_body(req, body, body_size);
+
+        std::cout << "TCP server received: " << req.DebugString() << std::endl;
     } catch (std::exception& e) {
       std::cerr << "Exception in thread: " << e.what() << "\n";
     }
