@@ -4,7 +4,7 @@
 #include <thread>
 
 #include "common.h"
-#include "message.pb.h"
+#include "message.h"
 
 #include <boost/program_options.hpp>
 namespace po = boost::program_options;
