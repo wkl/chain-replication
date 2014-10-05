@@ -1,6 +1,7 @@
 bin_PROGRAMS = server
 server_SOURCES = \
-	server.cc
+	server.cc \
+	@top_srcdir@/common/message.cc
 nodist_server_SOURCES = \
 	@top_srcdir@/common/message.pb.cc
 
