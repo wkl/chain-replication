@@ -11,7 +11,7 @@ void UDPLoop::run_forever() {
     proto::Message msg;
     assert(decode_msg(msg, data, length));
     std::cout << "UDP Server received from: " << sender_endpoint << std::endl
-              << msg.DebugString() << std::endl;
+              << msg.ShortDebugString() << std::endl;
 
     // echo back; to be removed
     // sock.send_to(asio::buffer(data, length), sender_endpoint);
@@ -55,7 +55,8 @@ void TCPLoop::session(tcp::socket sock) {
     // decode msg
     proto::Message msg;
     decode_body(msg, body, body_size);
-    std::cout << "TCP message received: " << msg.DebugString() << std::endl;
+    std::cout << "TCP message received from: " << sock.remote_endpoint()
+              << std::endl << msg.ShortDebugString() << std::endl;
 
     handle_msg(msg);
   } catch (std::exception &e) {
@@ -118,7 +119,8 @@ bool decode_msg(pb::Message &msg, char *buf, uint32_t buf_size) {
   return msg.ParseFromCodedStream(&cis);
 }
 
-void prepare_msg(proto::Message &msg, const proto::Message_MessageType &msg_type,
+void prepare_msg(proto::Message &msg,
+                 const proto::Message_MessageType &msg_type,
                  const pb::Message &sub_msg) {
   msg.set_type(msg_type);
   switch (msg_type) {
@@ -156,7 +158,10 @@ bool send_msg_tcp(Node target, const proto::Message_MessageType msg_type,
   size_t buf_size = msg.ByteSize() + 4;
   char buf[buf_size];
   encode_msg(msg, buf, buf_size);
-  std::cout << "Sending TCP message: " << msg.DebugString() << std::endl;
+  std::cout << "Sending TCP message..."
+            << " from: " << s.local_endpoint()
+            << " to: " << s.remote_endpoint() << std::endl
+            << msg.ShortDebugString() << std::endl;
   asio::write(s, asio::buffer(buf, buf_size));
 
   return true;
@@ -175,7 +180,9 @@ bool send_msg_udp(Node target, const proto::Message_MessageType msg_type,
   assert(buf_size < UDP_MAX_LENGTH);
   char buf[buf_size];
   encode_msg(msg, buf, buf_size);
-  std::cout << "Sending UDP message: " << msg.DebugString() << std::endl;
+  std::cout << "Sending UDP message..."
+            << " from: " << s.local_endpoint() << " to: " << endpoint
+            << std::endl << msg.ShortDebugString() << std::endl;
   s.send_to(asio::buffer(buf, buf_size), endpoint);
 
   // reply test, to be removed

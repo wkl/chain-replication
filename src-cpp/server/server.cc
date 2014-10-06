@@ -30,8 +30,8 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg) {
   }
 }
 
-void ChainServer::receive_request(proto::Request *req) {
-      cs->forward_request(*req);
+void ChainServer::receive_request(proto::Request* req) {
+  cs->forward_request(*req);
 }
 
 int main(int argc, char* argv[]) {

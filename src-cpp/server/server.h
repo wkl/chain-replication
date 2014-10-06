@@ -22,7 +22,7 @@ class ChainServer {
 
   void receive_request(proto::Request *req);
 
-  void forward_request(const proto::Request& req) {
+  void forward_request(const proto::Request &req) {
     std::cout << "forwarding request..." << std::endl;
     send_msg_tcp(Node("127.0.0.1", 50002), proto::Message::REQUEST, req);
   }
