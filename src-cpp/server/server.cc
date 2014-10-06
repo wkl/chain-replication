@@ -5,11 +5,11 @@ namespace po = boost::program_options;
 
 std::unique_ptr<ChainServer> cs;
 
-void ChainServerUDPLoop::handle_msg(Message& msg) {
+void ChainServerUDPLoop::handle_msg(proto::Message& msg) {
   switch (msg.type()) {
-    case Message::REQUEST:
+    case proto::Message::REQUEST:
       assert(msg.has_request());
-      cs->forward_request(msg.request());
+      cs->receive_request(msg.mutable_request());
       break;
     default:
       std::cerr << "no handler for message type (" << msg.type() << ")"
@@ -18,9 +18,9 @@ void ChainServerUDPLoop::handle_msg(Message& msg) {
   }
 }
 
-void ChainServerTCPLoop::handle_msg(Message& msg) {
+void ChainServerTCPLoop::handle_msg(proto::Message& msg) {
   switch (msg.type()) {
-    case Message::REQUEST:
+    case proto::Message::REQUEST:
       assert(msg.has_request());
       break;
     default:
@@ -28,6 +28,10 @@ void ChainServerTCPLoop::handle_msg(Message& msg) {
                 << std::endl;
       break;
   }
+}
+
+void ChainServer::receive_request(proto::Request *req) {
+      cs->forward_request(*req);
 }
 
 int main(int argc, char* argv[]) {

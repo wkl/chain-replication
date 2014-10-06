@@ -8,9 +8,10 @@ void UDPLoop::run_forever() {
     udp::endpoint sender_endpoint;
     size_t length =
         sock.receive_from(asio::buffer(data, UDP_MAX_LENGTH), sender_endpoint);
-    Message msg;
+    proto::Message msg;
     assert(decode_msg(msg, data, length));
-    std::cout << "UDP Server received: " << msg.DebugString() << std::endl;
+    std::cout << "UDP Server received from: " << sender_endpoint << std::endl
+              << msg.DebugString() << std::endl;
 
     // echo back; to be removed
     // sock.send_to(asio::buffer(data, length), sender_endpoint);
@@ -52,7 +53,7 @@ void TCPLoop::session(tcp::socket sock) {
     assert(length == body_size);
 
     // decode msg
-    Message msg;
+    proto::Message msg;
     decode_body(msg, body, body_size);
     std::cout << "TCP message received: " << msg.DebugString() << std::endl;
 
@@ -117,12 +118,12 @@ bool decode_msg(pb::Message &msg, char *buf, uint32_t buf_size) {
   return msg.ParseFromCodedStream(&cis);
 }
 
-void prepare_msg(Message &msg, const Message_MessageType &msg_type,
+void prepare_msg(proto::Message &msg, const proto::Message_MessageType &msg_type,
                  const pb::Message &sub_msg) {
   msg.set_type(msg_type);
   switch (msg_type) {
-    case Message::REQUEST: {
-      Request *tmp = new Request();
+    case proto::Message::REQUEST: {
+      proto::Request *tmp = new proto::Request();
       tmp->CopyFrom(sub_msg);          // make a copy
       msg.set_allocated_request(tmp);  // msg takes ownership of tmp
       break;
@@ -133,14 +134,23 @@ void prepare_msg(Message &msg, const Message_MessageType &msg_type,
   }
 }
 
-bool send_msg_tcp(Node target, const Message_MessageType msg_type,
+/**
+ * @brief send message with tcp
+ *
+ * @param[in]   target    destination
+ * @param[in]   msg_type  message type
+ * @param[out]  sub_msg   payload of message
+ *
+ * @return true on success.
+ */
+bool send_msg_tcp(Node target, const proto::Message_MessageType msg_type,
                   const pb::Message &sub_msg) {
   asio::io_service io_service;
   tcp::socket s(io_service);
   tcp::endpoint endpoint(address::from_string(target.ip()), target.port());
   s.connect(endpoint);
 
-  Message msg;
+  proto::Message msg;
   prepare_msg(msg, msg_type, sub_msg);
 
   size_t buf_size = msg.ByteSize() + 4;
@@ -152,13 +162,13 @@ bool send_msg_tcp(Node target, const Message_MessageType msg_type,
   return true;
 }
 
-bool send_msg_udp(Node target, const Message_MessageType msg_type,
+bool send_msg_udp(Node target, const proto::Message_MessageType msg_type,
                   const pb::Message &sub_msg) {
   asio::io_service io_service;
   udp::socket s(io_service, udp::endpoint(udp::v4(), 0));
   udp::endpoint endpoint(address::from_string(target.ip()), target.port());
 
-  Message msg;
+  proto::Message msg;
   prepare_msg(msg, msg_type, sub_msg);
 
   size_t buf_size = msg.ByteSize() + 4;

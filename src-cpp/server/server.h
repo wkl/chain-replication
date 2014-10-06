@@ -20,9 +20,11 @@ class ChainServer {
     std::cout << bank_id << std::endl;
   }
 
-  void forward_request(const Request& req) {
+  void receive_request(proto::Request *req);
+
+  void forward_request(const proto::Request& req) {
     std::cout << "forwarding request..." << std::endl;
-    send_msg_tcp(Node("127.0.0.1", 50002), Message::REQUEST, req);
+    send_msg_tcp(Node("127.0.0.1", 50002), proto::Message::REQUEST, req);
   }
 
  private:
@@ -31,12 +33,12 @@ class ChainServer {
 
 class ChainServerUDPLoop : public UDPLoop {
   using UDPLoop::UDPLoop;  // inherit constructor
-  void handle_msg(Message &msg);
+  void handle_msg(proto::Message &msg);
 };
 
 class ChainServerTCPLoop : public TCPLoop {
   using TCPLoop::TCPLoop;
-  void handle_msg(Message &msg);
+  void handle_msg(proto::Message &msg);
 };
 
 #endif

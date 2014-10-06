@@ -35,8 +35,8 @@ bool decode_msg(pb::Message &msg, char *buf, uint32_t buf_size);
 uint32_t decode_hdr(char *buf);
 bool decode_body(pb::Message &msg, char *buf, uint32_t buf_size);
 bool encode_msg(const pb::Message &msg, char *buf, size_t buf_size);
-bool send_msg_tcp(Node, const Message_MessageType, const pb::Message &);
-bool send_msg_udp(Node, const Message_MessageType, const pb::Message &);
+bool send_msg_tcp(Node, const proto::Message_MessageType, const pb::Message &);
+bool send_msg_udp(Node, const proto::Message_MessageType, const pb::Message &);
 
 class UDPLoop {
  public:
@@ -46,7 +46,7 @@ class UDPLoop {
   void operator()() { run_forever(); }
   void run_forever();
 
-  virtual void handle_msg(Message &msg) = 0;
+  virtual void handle_msg(proto::Message &msg) = 0;
 
  private:
   int port_;
@@ -60,7 +60,7 @@ class TCPLoop {
   void run_forever();
   void session(tcp::socket sock);
 
-  virtual void handle_msg(Message &msg) = 0;
+  virtual void handle_msg(proto::Message &msg) = 0;
 
  private:
   int port;
