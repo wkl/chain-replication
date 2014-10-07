@@ -1,0 +1,231 @@
+{
+    "master": {
+        "ip": "127.0.0.1",
+        "port": 10001
+    },
+    "bank": [
+        {
+            "bankid": "bank1",
+            "chainlen": 1,
+            "clientnum": 2,
+            "servers": [
+                {
+                    "serverid": "server1",
+                    "ip": "127.0.0.1",
+                    "port": 10001,
+                    "chainno": 1,
+                    "startdelay": 0,
+                    "lifetime": "unbounded"
+                }
+            ]
+        },
+        {
+            "bankid": "bank2",
+            "chainlen": 2,
+            "clientnum": 2,
+            "servers": [
+                {
+                    "serverid": "server1",
+                    "ip": "127.0.0.1",
+                    "port": 10002,
+                    "chainno": 1,
+                    "startdelay": 0,
+                    "lifetime": "unbounded"
+                },
+                {
+                    "serverid": "server2",
+                    "ip": "127.0.0.1",
+                    "port": 10002,
+                    "chainno": 2,
+                    "startdelay": 0,
+                    "lifetime": "unbounded"
+                }
+            ]
+        },
+        {
+            "bankid": "bank3",
+            "chainlen": 3,
+            "clientnum": 2,
+            "servers": [
+                {
+                    "serverid": "server1",
+                    "ip": "127.0.0.1",
+                    "port": 10003,
+                    "chainno": 1,
+                    "startdelay": 0,
+                    "lifetime": "unbounded"
+                },
+                {
+                    "serverid": "server2",
+                    "ip": "127.0.0.1",
+                    "port": 10004,
+                    "chainno": 2,
+                    "startdelay": 0,
+                    "lifetime": "unbounded"
+                },
+                {
+                    "serverid": "server3",
+                    "ip": "127.0.0.1",
+                    "port": 10005,
+                    "chainno": 3,
+                    "startdelay": 0,
+                    "lifetime": "unbounded"
+                },
+                {
+                    "serverid": "server4",
+                    "ip": "127.0.0.1",
+                    "port": 10006,
+                    "chainno": 4,
+                    "startdelay": 0,
+                    "lifetime": "unbounded"
+                }
+            ]
+        }
+    ],
+    "client": [
+        {
+            "clientid": "client1",
+            "ip": "127.0.0.1",
+            "port": 10007,
+            "waittimeout": 5,
+            "resendnum": 3,
+            "ifresend": true,
+            "request": [
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "seq": 1,
+                    "type": "DEPOSIT",
+                    "amount": 1000
+                },
+                {
+                    "bankid": "bank2",
+                    "accountid": "account1",
+                    "seq": 2,
+                    "type": "DEPOSIT",
+                    "amount": 1000
+                }
+            ]
+        },
+        {
+            "clientid": "client2",
+            "ip": "127.0.0.1",
+            "port": 10008,
+            "waittimeout": 5,
+            "resendnum": 3,
+            "ifresend": true,
+            "request": [
+                {
+                    "bankid": "bank2",
+                    "accountid": "account2",
+                    "seq": 1,
+                    "type": "DEPOSIT",
+                    "amount": 1000
+                },
+                {
+                    "bankid": "bank3",
+                    "accountid": "account2",
+                    "seq": 2,
+                    "type": "DEPOSIT",
+                    "amount": 1000
+                }
+            ]
+        },
+        {
+            "clientid": "client3",
+            "ip": "127.0.0.1",
+            "port": 10009,
+            "waittimeout": 5,
+            "resendnum": 3,
+            "ifresend": true,
+            "request": [
+                {
+                    "bankid": "bank3",
+                    "accountid": "account3",
+                    "seq": 1,
+                    "type": "DEPOSIT",
+                    "amount": 1000
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account3",
+                    "seq": 2,
+                    "type": "DEPOSIT",
+                    "amount": 1000
+                }
+            ]
+        },
+        {
+            "clientid": "client4",
+            "ip": "127.0.0.1",
+            "port": 10010,
+            "waittimeout": 5,
+            "resendnum": 3,
+            "ifresend": true,
+            "request": [
+                {
+                    "bankid": "bank1",
+                    "accountid": "account4",
+                    "seq": 1,
+                    "type": "DEPOSIT",
+                    "amount": 1000
+                },
+                {
+                    "bankid": "bank2",
+                    "accountid": "account4",
+                    "seq": 2,
+                    "type": "DEPOSIT",
+                    "amount": 1000
+                }
+            ]
+        },
+        {
+            "clientid": "client5",
+            "ip": "127.0.0.1",
+            "port": 10010,
+            "waittimeout": 5,
+            "resendnum": 3,
+            "ifresend": true,
+            "request": [
+                {
+                    "bankid": "bank2",
+                    "accountid": "account5",
+                    "seq": 1,
+                    "type": "DEPOSIT",
+                    "amount": 1000
+                },
+                {
+                    "bankid": "bank3",
+                    "accountid": "account5",
+                    "seq": 2,
+                    "type": "DEPOSIT",
+                    "amount": 1000
+                }
+            ]
+        },
+        {
+            "clientid": "client6",
+            "ip": "127.0.0.1",
+            "port": 10011,
+            "waittimeout": 5,
+            "resendnum": 3,
+            "ifresend": true,
+            "request": [
+                {
+                    "bankid": "bank3",
+                    "accountid": "account6",
+                    "seq": 1,
+                    "type": "DEPOSIT",
+                    "amount": 1000
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account6",
+                    "seq": 2,
+                    "type": "DEPOSIT",
+                    "amount": 1000
+                }
+            ]
+        }
+    ]
+}
