@@ -10,11 +10,9 @@ void UDPLoop::run_forever() {
         sock.receive_from(asio::buffer(data, UDP_MAX_LENGTH), sender_endpoint);
     proto::Message msg;
     assert(decode_msg(msg, data, length));
-    std::cout << "UDP Server received from: " << sender_endpoint << std::endl
+    std::cout << "UDP message Received from: " << sender_endpoint << std::endl
               << msg.ShortDebugString() << std::endl;
 
-    // echo back; to be removed
-    // sock.send_to(asio::buffer(data, length), sender_endpoint);
     handle_msg(msg);
   }
 }
@@ -125,9 +123,15 @@ void prepare_msg(proto::Message &msg,
   msg.set_type(msg_type);
   switch (msg_type) {
     case proto::Message::REQUEST: {
-      proto::Request *tmp = new proto::Request();
+      auto *tmp = new proto::Request();
       tmp->CopyFrom(sub_msg);          // make a copy
       msg.set_allocated_request(tmp);  // msg takes ownership of tmp
+      break;
+    }
+    case proto::Message::REPLY: {
+      auto *tmp = new proto::Reply();
+      tmp->CopyFrom(sub_msg);
+      msg.set_allocated_reply(tmp);
       break;
     }
     default:
@@ -159,9 +163,8 @@ bool send_msg_tcp(Node target, const proto::Message_MessageType msg_type,
   char buf[buf_size];
   encode_msg(msg, buf, buf_size);
   std::cout << "Sending TCP message..."
-            << " from: " << s.local_endpoint()
-            << " to: " << s.remote_endpoint() << std::endl
-            << msg.ShortDebugString() << std::endl;
+            << " from: " << s.local_endpoint() << " to: " << s.remote_endpoint()
+            << std::endl << msg.ShortDebugString() << std::endl;
   asio::write(s, asio::buffer(buf, buf_size));
 
   return true;
@@ -184,17 +187,6 @@ bool send_msg_udp(Node target, const proto::Message_MessageType msg_type,
             << " from: " << s.local_endpoint() << " to: " << endpoint
             << std::endl << msg.ShortDebugString() << std::endl;
   s.send_to(asio::buffer(buf, buf_size), endpoint);
-
-  // reply test, to be removed
-  /*
-  char reply[buf_size];
-  udp::endpoint server_endpoint;
-  size_t reply_length =
-      s.receive_from(asio::buffer(reply, buf_size), server_endpoint);
-  std::cout << "Reply is: ";
-  std::cout.write(reply, reply_length);
-  std::cout << std::endl;
-  */
 
   return true;
 }

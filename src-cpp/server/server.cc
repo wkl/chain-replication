@@ -5,6 +5,10 @@ namespace po = boost::program_options;
 
 std::unique_ptr<ChainServer> cs;
 
+// variables for debug
+bool is_head;
+bool is_tail;
+
 void ChainServerUDPLoop::handle_msg(proto::Message& msg) {
   switch (msg.type()) {
     case proto::Message::REQUEST:
@@ -22,6 +26,7 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg) {
   switch (msg.type()) {
     case proto::Message::REQUEST:
       assert(msg.has_request());
+      cs->receive_request(msg.mutable_request());
       break;
     default:
       std::cerr << "no handler for message type (" << msg.type() << ")"
@@ -30,8 +35,23 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg) {
   }
 }
 
+void ChainServer::forward_request(proto::Request* req) {
+  req->set_bank_update_seq(++bank_update_seq_);
+  std::cout << "forwarding request..." << std::endl;
+  send_msg_tcp(Node("127.0.0.1", 50002), proto::Message::REQUEST, *req);
+}
+
+void ChainServer::reply(const proto::Request& req) {
+  proto::Reply reply;
+  reply.set_outcome(proto::Reply::PROCESSED);
+  reply.set_req_id(req.req_id());
+  Node client(req.client_addr().ip(), req.client_addr().port());
+  send_msg_udp(client, proto::Message::REPLY, reply);
+}
+
 void ChainServer::receive_request(proto::Request* req) {
-  cs->forward_request(*req);
+  if (is_head) cs->forward_request(req);
+  if (is_tail) cs->reply(*req);
 }
 
 int main(int argc, char* argv[]) {
@@ -52,8 +72,17 @@ int main(int argc, char* argv[]) {
 
     cs = std::unique_ptr<ChainServer>(new ChainServer("boa"));
 
-    int server_port = 50001;
-    if (vm.count("second")) server_port = 50002;
+    int server_port;
+    if (vm.count("second")) {
+      is_tail = true;
+      is_head = false;
+      server_port = 50002;
+    } else {
+      is_tail = false;
+      is_head = true;
+      server_port = 50001;
+    }
+
     ChainServerUDPLoop udp_loop(server_port);
     ChainServerTCPLoop tcp_loop(server_port);
     std::thread udp_thread(udp_loop);

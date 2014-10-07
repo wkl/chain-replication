@@ -4,10 +4,12 @@ package proto;
 message Message {
 	enum MessageType {
 		REQUEST = 0;
+		REPLY = 1;
 	//	ACKNOWLEDGE = 1;
 	}
 	required MessageType type = 1;
 	optional Request request = 2;
+	optional Reply reply = 3;
 }
 
 message Address {
@@ -21,14 +23,19 @@ message Request {
 		DEPOSIT = 1;
 		WITHDRAW = 2;
 	}
+	required string req_id = 1;
+	required RequestType type = 2;
+	required Address client_addr = 3;
+	optional uint32 bank_update_seq = 4;
+}
+
+message Reply {
 	enum Outcome {
 		PROCESSED = 0;
 		INCONSISTENT_WITH_HISTORY = 1;
 		INSUFFICIENT_FUNDS = 2;
 	}
 	required string req_id = 1;
-	required RequestType type = 2;
-	optional Outcome outcome = 3;
-	optional float balance = 4;
-	required Address client_addr = 5;
+	required Outcome outcome = 2;
+	optional float balance = 3;
 }

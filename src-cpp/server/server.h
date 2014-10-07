@@ -16,19 +16,21 @@
 
 class ChainServer {
  public:
-  ChainServer(std::string bank_id) : bank_id(bank_id) {
+  ChainServer(std::string bank_id) : bank_id_(bank_id) {
     std::cout << bank_id << std::endl;
+    bank_update_seq_ = 0;
   }
 
   void receive_request(proto::Request *req);
 
-  void forward_request(const proto::Request &req) {
-    std::cout << "forwarding request..." << std::endl;
-    send_msg_tcp(Node("127.0.0.1", 50002), proto::Message::REQUEST, req);
-  }
+  // test function, to be removed
+  void forward_request(proto::Request *req);
+  // test function, to be removed
+  void reply(const proto::Request &req);
 
  private:
-  std::string bank_id;
+  std::string bank_id_;
+  int bank_update_seq_;
 };
 
 class ChainServerUDPLoop : public UDPLoop {
