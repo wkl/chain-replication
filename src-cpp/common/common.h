@@ -3,6 +3,7 @@
 
 #include <string>
 
+#include <json/json.h>
 #include <glog/logging.h>
 
 class Node {

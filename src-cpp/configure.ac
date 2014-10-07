@@ -26,10 +26,11 @@ AC_CHECK_PROG([PROTOC], [protoc], [protoc])
 AS_IF([test "x${PROTOC}" == "x"],
 	[AC_MSG_ERROR([ProtoBuf compiler "protoc" not found.])])
 
+# jsoncpp
+PKG_CHECK_MODULES(JSONCPP, jsoncpp >= 0.5.0)
+
 # glog
 PKG_CHECK_MODULES(GLOG, libglog >= 0.3.0)
-AC_SUBST(GLOG_LIBS)
-AC_SUBST(GLOG_CFLAGS)
 
 # boost
 BOOST_REQUIRE([1.53])

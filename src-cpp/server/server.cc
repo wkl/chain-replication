@@ -92,6 +92,25 @@ int main(int argc, char* argv[]) {
       server_port = 50001;
     }
 
+    if (vm.count("config-file")) {
+      std::ifstream ifs(vm["config-file"].as<std::string>(), std::ios::binary);
+      if (!ifs) {
+        std::cerr << "open '" << vm["config-file"].as<std::string>() << "' failed"
+                  << std::endl;
+        return 1;
+      }
+
+      Json::Reader reader;
+      Json::Value root;
+      assert(reader.parse(ifs, root));
+    }
+    /*
+    else {
+      cerr << "config-file was not set." << endl;
+      return 1;
+    }
+    */
+
     ChainServerUDPLoop udp_loop(server_port);
     ChainServerTCPLoop tcp_loop(server_port);
     std::thread udp_thread(udp_loop);
@@ -99,23 +118,6 @@ int main(int argc, char* argv[]) {
     udp_thread.join();
     tcp_thread.join();
 
-    /*
-    TODO read config file
-    if (vm.count("config-file")) {
-      ifstream ifs(vm["config-file"].as<string>());
-      if (!ifs) {
-        cerr << "open '" << vm["config-file"].as<string>() << "' failed"
-             << endl;
-        return 1;
-      }
-      string line;
-      getline(ifs, line);
-      cout << line;
-    } else {
-      cerr << "config-file was not set." << endl;
-      return 1;
-    }
-    */
   } catch (std::exception& e) {
     std::cerr << "error: " << e.what() << std::endl;
     return 1;
