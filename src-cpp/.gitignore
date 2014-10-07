@@ -72,3 +72,5 @@ client/client
 # generated protobuf file
 common/*.pb.h
 common/*.pb.cc
+
+tags
