@@ -35,8 +35,8 @@ bool decode_msg(pb::Message &msg, char *buf, uint32_t buf_size);
 uint32_t decode_hdr(char *buf);
 bool decode_body(pb::Message &msg, char *buf, uint32_t buf_size);
 bool encode_msg(const pb::Message &msg, char *buf, size_t buf_size);
-bool send_msg_tcp(Node, const proto::Message_MessageType, const pb::Message &);
-bool send_msg_udp(Node, const proto::Message_MessageType, const pb::Message &);
+bool send_msg_tcp(proto::Address, const proto::Message_MessageType, const pb::Message &);
+bool send_msg_udp(proto::Address, const proto::Message_MessageType, const pb::Message &);
 
 class UDPLoop {
  public:

@@ -10,13 +10,19 @@
 #include <fstream>
 #include <string>
 #include <thread>
+#include <unordered_map>
 
 #include "common.h"
 #include "message.h"
+#include "server.h"
+
+using std::string;
+using std::unordered_map;
 
 class Client {
  public:
-  Client(std::string ip, int port) : ip_(ip), port_(port) {}
+  // constructor
+  Client(string ip, int port) : ip_(ip), port_(port) {};
 
   // thread entry
   void operator()() { run(); };
@@ -26,8 +32,10 @@ class Client {
   void handle_msg(proto::Message& msg);
 
  private:
-  std::string ip_;
+  string ip_;
   int port_;
+  unordered_map<string,ChainServer> bank_head_list_;
+  unordered_map<string,ChainServer> bank_tail_list_;
 };
 
 #endif

@@ -27,6 +27,12 @@ message Request {
 	required RequestType type = 2;
 	required Address client_addr = 3;
 	optional uint32 bank_update_seq = 4;
+	optional string account_id = 5;
+	optional string bank_id = 6;
+	optional float amount = 7;
+	optional string dest_bank_id = 8;
+	optional string dest_account_id = 9;
+	optional Reply reply = 10;
 }
 
 message Reply {

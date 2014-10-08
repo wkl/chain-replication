@@ -149,7 +149,7 @@ void prepare_msg(proto::Message &msg,
  *
  * @return true on success.
  */
-bool send_msg_tcp(Node target, const proto::Message_MessageType msg_type,
+bool send_msg_tcp(proto::Address target, const proto::Message_MessageType msg_type,
                   const pb::Message &sub_msg) {
   asio::io_service io_service;
   tcp::socket s(io_service);
@@ -170,7 +170,7 @@ bool send_msg_tcp(Node target, const proto::Message_MessageType msg_type,
   return true;
 }
 
-bool send_msg_udp(Node target, const proto::Message_MessageType msg_type,
+bool send_msg_udp(proto::Address target, const proto::Message_MessageType msg_type,
                   const pb::Message &sub_msg) {
   asio::io_service io_service;
   udp::socket s(io_service, udp::endpoint(udp::v4(), 0));
