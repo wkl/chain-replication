@@ -113,13 +113,11 @@ void ChainServer::receive_request(proto::Request* req) {
 // handle query request
 void ChainServer::handle_query(proto::Request* req) {
   float balance = get_balance(req->account_id());
-
   proto::Reply* reply = new proto::Reply;
   reply->set_outcome(proto::Reply::PROCESSED);
   reply->set_req_id(req->req_id());
   reply->set_balance(balance);
   req->set_allocated_reply(reply);
-
   cs->reply(*req);
 }
 
