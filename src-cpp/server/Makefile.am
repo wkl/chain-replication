@@ -8,10 +8,12 @@ nodist_server_SOURCES = \
 server_CPPFLAGS = \
 	${my_CPPFLAGS} \
 	$(BOOST_CPPFLAGS) \
+	$(GLOG_CFLAGS) \
 	-I@top_srcdir@/common/
 server_CXXFLAGS = ${my_CXXFLAGS}
 server_LDADD = \
 	$(BOOST_PROGRAM_OPTIONS_LIBS) \
 	$(BOOST_SYSTEM_LIBS) \
 	$(BOOST_ASIO_LIBS) \
+	$(GLOG_LIBS) \
 	$(PROTOBUF_LIBS)

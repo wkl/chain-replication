@@ -3,6 +3,8 @@
 
 #include <string>
 
+#include <glog/logging.h>
+
 class Node {
  public:
   Node(std::string ip, unsigned short port) : ip_(ip), port_(port) {}

@@ -59,6 +59,7 @@ int main(int argc, char* argv[]) {
     po::options_description desc("Allowed options");
     desc.add_options()("help,h", "print help message")(
         "config-file,c", po::value<std::string>(), "specify config file path")(
+        "log-dir,l", po::value<std::string>(), "specify logging dir")(
         "second,s", "I'm second chain server");
 
     po::variables_map vm;
@@ -69,6 +70,14 @@ int main(int argc, char* argv[]) {
       std::cout << desc << std::endl;
       return 0;
     }
+
+    FLAGS_logtostderr = true;
+    if (vm.count("log-dir")) {
+      FLAGS_log_dir = vm["log-dir"].as<std::string>();
+      FLAGS_logtostderr = false;
+    }
+    google::InitGoogleLogging(argv[0]);
+    LOG(INFO) << "Processing configuration file";
 
     cs = std::unique_ptr<ChainServer>(new ChainServer("boa"));
 

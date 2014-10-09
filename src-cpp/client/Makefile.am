@@ -8,10 +8,12 @@ nodist_client_SOURCES = \
 client_CPPFLAGS = \
 	${my_CPPFLAGS} \
 	$(BOOST_CPPFLAGS) \
+	$(GLOG_CFLAGS) \
 	-I@top_srcdir@/common/
 client_CXXFLAGS = ${my_CXXFLAGS}
 client_LDADD = \
 	$(BOOST_PROGRAM_OPTIONS_LIBS) \
 	$(BOOST_SYSTEM_LIBS) \
 	$(BOOST_ASIO_LIBS) \
+	$(GLOG_LIBS) \
 	$(PROTOBUF_LIBS)
