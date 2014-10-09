@@ -168,20 +168,22 @@ void ChainServer::get_update_req_result(proto::Request* req) {
   proto::Reply* reply = new proto::Reply;
   proto::Request_CheckRequest check_result = check_update_request(*req);
   req->set_check_result(check_result);
-  if (check_result == proto::Request::INCONSISTENT) {
-    reply->set_outcome(proto::Reply::INCONSISTENT_WITH_HISTORY); 
-  }
-  else if (check_result == proto::Request::PROCESSED) {
-    reply->set_outcome(proto::Reply::PROCESSED);
-  }
-  else { //check_result == proto::Request::NEWREQ
-    ChainServer::UpdateBalanceOutcome update_result = update_balance(*req);
-    if (update_result == ChainServer::UpdateBalanceOutcome::InsufficientFunds) {    
-      reply->set_outcome(proto::Reply::INSUFFICIENT_FUNDS);
-    }
-    else {
+  switch (check_result) {
+    case proto::Request::INCONSISTENT:
+      reply->set_outcome(proto::Reply::INCONSISTENT_WITH_HISTORY); 
+      break;
+    case proto::Request::PROCESSED:
       reply->set_outcome(proto::Reply::PROCESSED);
-    }
+      break;
+    case proto::Request::NEWREQ:
+      ChainServer::UpdateBalanceOutcome update_result = update_balance(*req);
+      if (update_result == ChainServer::UpdateBalanceOutcome::InsufficientFunds) {    
+        reply->set_outcome(proto::Reply::INSUFFICIENT_FUNDS);
+      }
+      else {
+        reply->set_outcome(proto::Reply::PROCESSED);
+      }
+      break;
   }
   reply->set_req_id(req->req_id());
   float balance = get_balance(req->account_id());
