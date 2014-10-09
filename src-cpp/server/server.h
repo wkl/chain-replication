@@ -26,7 +26,7 @@ using std::endl;
 
 class ChainServer {
  public:
-  enum class CheckRequest { Inconsistent, Processed, NewReq };
+  enum class UpdateBalanceOutcome { Success, InsufficientFunds };
 
   ChainServer() {};
   ChainServer(string bank_id) : bank_id_(bank_id) {
@@ -35,24 +35,34 @@ class ChainServer {
   }
 
   void receive_request(proto::Request *req);
-
-  // test function, to be removed
-  void forward_request(proto::Request *req);
-  // test function, to be removed
+  void forward_request(const proto::Request &req);
   void reply(const proto::Request &req);
-  void handle_query(const proto::Request& req);
-  void single_handle_update(proto::Request* request);
+  void receive_ack(proto::Acknowledge* ack);
+  void sendback_ack(const proto::Acknowledge& ack);
+
+  void handle_query(proto::Request* req);
+  void head_handle_update(proto::Request* req);
+  void single_handle_update(proto::Request* req);
+  void tail_handle_update(proto::Request* req);
+  void internal_handle_update(proto::Request* req);
   float get_balance(string account_id);
-  proto::Reply get_update_req_result(proto::Request* request);
-  ChainServer::CheckRequest check_update_request(proto::Request* request);
-  Account& get_or_create_account(proto::Request* request, bool* ifexisted_account);
+  void get_update_req_result(proto::Request* req);
+  proto::Request_CheckRequest check_update_request(const proto::Request& req);
+  Account& get_or_create_account(const proto::Request& req, bool* ifexisted_account);
   bool check_req_consistency(const proto::Request& req1, const proto::Request& req2);
+  ChainServer::UpdateBalanceOutcome update_balance(const proto::Request& req);
+  void update_processed_update_list(const proto::Request& req);
+  void insert_sent_req_list(const proto::Request& req);
 
   // getter/setter
   void set_ishead(bool ishead) { ishead_ = ishead; };
   bool ishead() { return ishead_; };
   void set_istail(bool istail) { istail_ = istail; };
   bool istail() { return istail_; };
+  void set_pre_server_addr(proto::Address pre_server_addr) { pre_server_addr_ = pre_server_addr; };
+  proto::Address& pre_server_addr() { return pre_server_addr_; };
+  void set_succ_server_addr(proto::Address succ_server_addr) { succ_server_addr_ = succ_server_addr; };
+  proto::Address& succ_server_addr() { return succ_server_addr_; };
 
  private:
   string bank_id_;

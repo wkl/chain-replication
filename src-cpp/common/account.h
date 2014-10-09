@@ -9,7 +9,7 @@ class Account
 {
 public:
   // constructor
-  Account(){};
+  Account(){ balance_ = 0; };
   Account(string accountid, float balance) : accountid_(accountid), balance_(balance) {};
   
   // getter/setter

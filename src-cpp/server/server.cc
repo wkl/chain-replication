@@ -5,10 +5,6 @@ namespace po = boost::program_options;
 
 std::unique_ptr<ChainServer> cs;
 
-// variables for debug
-bool is_head;
-bool is_tail;
-
 void ChainServerUDPLoop::handle_msg(proto::Message& msg) {
   switch (msg.type()) {
     case proto::Message::REQUEST:
@@ -28,6 +24,10 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg) {
       assert(msg.has_request());
       cs->receive_request(msg.mutable_request());
       break;
+    case proto::Message::ACKNOWLEDGE:
+      assert(msg.has_ack());
+      cs->receive_ack(msg.mutable_ack());
+      break;
     default:
       std::cerr << "no handler for message type (" << msg.type() << ")"
                 << std::endl;
@@ -35,141 +35,211 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg) {
   }
 }
 
-void ChainServer::forward_request(proto::Request* req) {
-  req->set_bank_update_seq(++bank_update_seq_);
+void ChainServer::forward_request(const proto::Request &req) {
   std::cout << "forwarding request..." << std::endl;
-  proto::Address addr;
-  addr.set_ip("127.0.0.1");
-  addr.set_port(50002);
-  send_msg_tcp(addr, proto::Message::REQUEST, *req);
+  send_msg_tcp(cs->succ_server_addr_, proto::Message::REQUEST, req);
 }
 
 void ChainServer::reply(const proto::Request& req) {
-  proto::Reply reply;
-  reply.set_outcome(proto::Reply::PROCESSED);
-  reply.set_req_id(req.req_id());
+  proto::Reply reply = req.reply();
   proto::Address client;
   client.set_ip(req.client_addr().ip());
   client.set_port(req.client_addr().port());
   send_msg_udp(client, proto::Message::REPLY, reply);
 }
 
-void ChainServer::receive_request(proto::Request* request) {
-  //if (is_head) cs->forward_request(req);
-  //if (is_tail) cs->reply(*req);
-  if (request->type() == proto::Request::QUERY) {
-        assert(cs->istail_);
-        handle_query(*request);
-  }
-  
-  // processing update request
-  assert(request->type() != proto::Request::QUERY);
+void ChainServer::sendback_ack(const proto::Acknowledge& ack) {
+  std::cout << "sending back acknowledge..." << std::endl;
+  send_msg_tcp(cs->pre_server_addr_, proto::Message::ACKNOWLEDGE, ack);
+}
 
+void ChainServer::receive_ack(proto::Acknowledge* ack) {
+  while (!cs->sent_req_list_.empty() && cs->sent_req_list_.front().bank_update_seq()<=ack->bank_update_seq()) {
+    proto::Request req = cs->sent_req_list_.front();
+    auto it = (cs->processed_update_map_).find(req.req_id());
+    if (it == (cs->processed_update_map_).end()) {  // request doesn't exists in processed_update_map_
+      auto it_insert = cs->processed_update_map_.insert(std::make_pair(req.req_id(), req));
+      assert(it_insert.second);
+    }
+    cs->sent_req_list_.pop_front();
+  }
+  cout<<"length of sent_req_list: "<<cs->sent_req_list_.size()<<", length of processed_update_map: "<<cs->processed_update_map_.size()<<endl;
+  if (!cs->ishead_) {
+    sendback_ack(*ack);
+  }
+}
+
+void ChainServer::receive_request(proto::Request* req) {
+  // processing query request
+  if (req->type() == proto::Request::QUERY) {
+    assert(cs->istail_);
+    handle_query(req);
+    return;
+  }
+  // processing update request
+  assert(req->type() != proto::Request::QUERY);
+  // head server
+  if (cs->ishead_ && !cs->istail_) {
+    cs->bank_update_seq_ ++;        // sequence of update request
+    req->set_bank_update_seq(cs->bank_update_seq_);
+    head_handle_update(req);
+    return;
+  }
   // only one server
   if (cs->ishead_ && cs->istail_) {        
-        cs->bank_update_seq_ ++;        // sequence of update request
-        request->set_bank_update_seq(cs->bank_update_seq_);
-        single_handle_update(request);
+    cs->bank_update_seq_ ++;        // sequence of update request
+    req->set_bank_update_seq(cs->bank_update_seq_);
+    single_handle_update(req);
+    return;
   }
+  // ignore duplicate update request which is possible when handling failure
+  if (cs->bank_update_seq_ >= req->bank_update_seq()) {
+        return;
+  }
+  // assertion based on our FIFO request forwarding assumption
+  assert(cs->bank_update_seq_ == req->bank_update_seq() - 1);
+  cs->bank_update_seq_ = req->bank_update_seq();
+  // tail server
+  if (!cs->ishead_ && cs->istail_) {
+    tail_handle_update(req);
+    return;
+  }
+  // internal server
+  assert(!cs->ishead_ && !cs->istail_);
+  internal_handle_update(req);
+  return;
 }
 
 // handle query request
-void ChainServer::handle_query(const proto::Request& request) {
-  float balance = get_balance(request.account_id());
+void ChainServer::handle_query(proto::Request* req) {
+  float balance = get_balance(req->account_id());
 
-  proto::Reply reply;
-  reply.set_outcome(proto::Reply::PROCESSED);
-  reply.set_req_id(request.req_id());
-  reply.set_balance(balance);
-  proto::Address client;
-  client.set_ip(request.client_addr().ip());
-  client.set_port(request.client_addr().port());
-  send_msg_udp(client, proto::Message::REPLY, reply);
+  proto::Reply* reply = new proto::Reply;
+  reply->set_outcome(proto::Reply::PROCESSED);
+  reply->set_req_id(req->req_id());
+  reply->set_balance(balance);
+  req->set_allocated_reply(reply);
+
+  cs->reply(*req);
+}
+
+// head server handle update request
+void ChainServer::head_handle_update(proto::Request* req) {
+  get_update_req_result(req);
+  cout<<"Processed request result: req_id="<<req->reply().req_id()<<", balance="<<req->reply().balance()<<endl;
+  insert_sent_req_list(*req);
+  cs->forward_request(*req);
 }
 
 // single server handle update request
-void ChainServer::single_handle_update(proto::Request* request) {
-  proto::Reply req_result = get_update_req_result(request);
+void ChainServer::single_handle_update(proto::Request* req) {
+  get_update_req_result(req);
+  cout<<"Processed request result: req_id="<<req->reply().req_id()<<", balance="<<req->reply().balance()<<endl;
+  if (req->check_result() == proto::Request::NEWREQ) {
+    update_processed_update_list(*req);
+  }
+  cs->reply(*req);
+}
+
+// tail server handle update request
+void ChainServer::tail_handle_update(proto::Request* req) {
+  get_update_req_result(req);
+  cout<<"Processed request result: req_id="<<req->reply().req_id()<<", balance="<<req->reply().balance()<<endl;
+  if (req->check_result() == proto::Request::NEWREQ) {
+    update_processed_update_list(*req);
+  }
+  if (req->type() != proto::Request::TRANSFERTO) {
+    cout<<"client ip: "<<req->client_addr().ip()<<", port: "<<req->client_addr().port()<<endl;
+    cs->reply(*req);
+  }
+  proto::Acknowledge ack;
+  ack.set_bank_update_seq(req->bank_update_seq());
+  sendback_ack(ack);
+}
+
+// interval server handle update request
+void ChainServer::internal_handle_update(proto::Request* req) {
+  get_update_req_result(req);
+  cout<<"Processed request result: req_id="<<req->reply().req_id()<<", balance="<<req->reply().balance()<<endl;
+  insert_sent_req_list(*req);
+  cs->forward_request(*req);
 }
 
 // used in all the xxxx_handle_update
-proto::Reply ChainServer::get_update_req_result(proto::Request* request) {
-  proto::Reply req_result;
-  check_update_request(request);
-
-    /*
-    check_result = check_update_request(request)
-    if (check_result == CheckRequest.Inconsistent):
-            req_result = ReqResult(request.req_id,  RequestOutcome.InconsistentWithHistory, self.balance)
-    elif (check_result == CheckRequest.Processed):
-            req_result = ReqResult(request.req_id, RequestOutcome.Processed, self.balance)
-    else:
-            update_result = update_balance(request)
-            if (update_result == UpdateBalanceOutcome.InsufficientFunds):
-            	req_result = ReqResult(request.req_id,
-                         RequestOutcome.InsufficientFunds, self.balance)
-            else:
-                req_result = ReqResult(request.req_id,
-                         RequestOutcome.Processed, self.balance)
-    return req_result
-    */
-
-  return req_result;
+void ChainServer::get_update_req_result(proto::Request* req) {
+  proto::Reply* reply = new proto::Reply;
+  proto::Request_CheckRequest check_result = check_update_request(*req);
+  req->set_check_result(check_result);
+  if (check_result == proto::Request::INCONSISTENT) {
+    reply->set_outcome(proto::Reply::INCONSISTENT_WITH_HISTORY); 
+  }
+  else if (check_result == proto::Request::PROCESSED) {
+    reply->set_outcome(proto::Reply::PROCESSED);
+  }
+  else { //check_result == proto::Request::NEWREQ
+    ChainServer::UpdateBalanceOutcome update_result = update_balance(*req);
+    if (update_result == ChainServer::UpdateBalanceOutcome::InsufficientFunds) {    
+      reply->set_outcome(proto::Reply::INSUFFICIENT_FUNDS);
+    }
+    else {
+      reply->set_outcome(proto::Reply::PROCESSED);
+    }
+  }
+  reply->set_req_id(req->req_id());
+  float balance = get_balance(req->account_id());
+  reply->set_balance(balance);
+  req->set_allocated_reply(reply);
 }
 
 // used in get_update_req_result
-ChainServer::CheckRequest ChainServer::check_update_request(proto::Request* request) {
+proto::Request_CheckRequest ChainServer::check_update_request(const proto::Request& req) {
   bool ifexisted_account = true;
-  Account& account = get_or_create_account(request, &ifexisted_account);
-  cout<<"balance: "<<account.balance()<<", ifexisted:"<<ifexisted_account<<endl;
+  get_or_create_account(req, &ifexisted_account); 
+
   if (!ifexisted_account) {
-    return ChainServer::CheckRequest::NewReq;
+    return proto::Request::NEWREQ;
   }
   else {
-    unordered_map<string,proto::Request>::iterator it;
-    it = (cs->processed_update_map_).find(request->req_id());
+    auto it = (cs->processed_update_map_).find(req.req_id());
     if (it == (cs->processed_update_map_).end()) {  // request doesn't exist in processed_update_map_
       if ((cs->sent_req_list_).size() > 0) {
-        for(auto itq=(cs->sent_req_list_).begin(); itq!=(cs->sent_req_list_).end(); ++itq) {
-          if (request->req_id() == (*itq).req_id()) { // request exists in sent_req_list_
-	    bool if_req_consistent = check_req_consistency(*request, *itq);
+        for(auto it_queue=(cs->sent_req_list_).begin(); it_queue!=(cs->sent_req_list_).end(); ++it_queue) {
+          if (req.req_id() == (*it_queue).req_id()) { // request exists in sent_req_list_
+	    bool if_req_consistent = check_req_consistency(req, *it_queue);
             if (if_req_consistent) {	// consistent request
-              return ChainServer::CheckRequest::Processed;
+              return proto::Request::PROCESSED;
             }
             else { 	// inconsistent request
-              return ChainServer::CheckRequest::Inconsistent;
+              return proto::Request::INCONSISTENT;
             }
           }
         }
       }
       // request doesn't exist in sent_req_list_
-      return ChainServer::CheckRequest::NewReq;
+      return proto::Request::NEWREQ;
     }
     else {  // request exists in processed_update_map_
-      bool if_req_consistent = check_req_consistency(*request, (*it).second);
+      bool if_req_consistent = check_req_consistency(req, (*it).second);
       if (if_req_consistent) {	// consistent request
-        return ChainServer::CheckRequest::Processed;
+        return proto::Request::PROCESSED;
       }
       else { 	// inconsistent request
-        return ChainServer::CheckRequest::Inconsistent;
+        return proto::Request::INCONSISTENT;
       }
     }
   }
 }
 
 // get or create account object
-Account& ChainServer::get_or_create_account(proto::Request* request, bool* ifexisted_account) {
-  // in Phase 4, need to deal with transfer type: get dest account
-  string account_id = request->account_id();
-  unordered_map<string, Account>::iterator it;
-  it = cs->bank_.account_map().find(account_id);
+Account& ChainServer::get_or_create_account(const proto::Request& req, bool* ifexisted_account) {
+  string account_id = req.account_id();
+  auto it = cs->bank_.account_map().find(account_id);
   if (it == cs->bank_.account_map().end()) {  // account doesn't exist, create a new account
     Account account(account_id, 0);
-    std::pair<string,Account> pair_input (account_id, account);
-    auto pair = cs->bank_.account_map().insert(pair_input); 
-    assert(pair.second);
+    auto it_insert = cs->bank_.account_map().insert(std::make_pair(account_id, account));
+    assert(it_insert.second);
     *ifexisted_account = false;
-    return (pair.first)->second;
+    return (it_insert.first)->second;
   }
   else {  // get the account
     *ifexisted_account = true;
@@ -192,13 +262,11 @@ bool ChainServer::check_req_consistency(const proto::Request& req1, const proto:
 // used in handle_query
 float ChainServer::get_balance(string account_id) {
   float balance = 0;
-  unordered_map<string,Account>::iterator it;
-  it = cs->bank_.account_map().find(account_id);
+  auto it = cs->bank_.account_map().find(account_id);
   if (it == cs->bank_.account_map().end()) {  // account doesn't exist, create a new account
     Account account(account_id, 0);
-    std::pair<string,Account> pair_input (account_id, account);
-    auto pair = cs->bank_.account_map().insert(pair_input); 
-    assert(pair.second); 
+    auto it2 = cs->bank_.account_map().insert(std::make_pair(account_id, account));
+    assert(it2.second);
   }
   else {  // get balance of the account
     balance = (*it).second.balance();
@@ -206,12 +274,42 @@ float ChainServer::get_balance(string account_id) {
   return balance;
 }
 
+// used in check_update_request
+ChainServer::UpdateBalanceOutcome ChainServer::update_balance(const proto::Request& req) {
+  bool ifexisted_account = true;
+  Account& account = get_or_create_account(req, &ifexisted_account);
+  if (req.type() == proto::Request::WITHDRAW || req.type() == proto::Request::TRANSFER) {
+    if (account.balance() < req.amount()) {
+      return ChainServer::UpdateBalanceOutcome::InsufficientFunds;
+    }
+    else {
+      account.set_balance(account.balance() - req.amount());  
+      return ChainServer::UpdateBalanceOutcome::Success;
+    }
+  }
+  else {
+    account.set_balance(account.balance() + req.amount());  
+    return ChainServer::UpdateBalanceOutcome::Success;
+  }
+}
+
+// used in tail_handle_update(req) and single_handle_update(req)
+void ChainServer::update_processed_update_list(const proto::Request& req) {
+  auto it = cs->processed_update_map_.insert(std::make_pair(req.req_id(), req));
+  assert(it.second);
+}
+
+// used in head_handle_update(req) and interval_handle_update(req)
+void ChainServer::insert_sent_req_list(const proto::Request& req) {
+  cs->sent_req_list_.push_back(req);	// insert at the end of deque
+}
+
 int main(int argc, char* argv[]) {
   try {
     po::options_description desc("Allowed options");
     desc.add_options()("help,h", "print help message")(
         "config-file,c", po::value<std::string>(), "specify config file path")(
-        "second,s", "I'm second chain server");
+        "second,s", "I'm second chain server")("third,t", "I'm third chain server");
 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -225,16 +323,34 @@ int main(int argc, char* argv[]) {
     cs = std::unique_ptr<ChainServer>(new ChainServer("bank1"));
 
     int server_port;
-    if (vm.count("second")) {
-      is_tail = true;
-      is_head = false;
+    if (vm.count("second")) {	// internal server
+      cs->set_ishead(false);
+      cs->set_istail(false);
       server_port = 50002;
-    } else {
-      //is_tail = false;
-      //is_head = true;
-      cs->set_ishead(true);
+      proto::Address pre_server;  // pre_server address
+      pre_server.set_ip("127.0.0.1");
+      pre_server.set_port(50001);
+      cs->set_pre_server_addr(pre_server);
+      proto::Address succ_server;  // succ_server address
+      succ_server.set_ip("127.0.0.1");
+      succ_server.set_port(50003);
+      cs->set_succ_server_addr(succ_server);
+    } else if (vm.count("third")) {	// tail server
+      cs->set_ishead(false);
       cs->set_istail(true);
+      server_port = 50003;
+      proto::Address pre_server;  // pre_server address
+      pre_server.set_ip("127.0.0.1");
+      pre_server.set_port(50002);
+      cs->set_pre_server_addr(pre_server);
+    } else {	// head server
+      cs->set_ishead(true);
+      cs->set_istail(false);
       server_port = 50001;
+      proto::Address succ_server;  // succ_server address
+      succ_server.set_ip("127.0.0.1");
+      succ_server.set_port(50002);
+      cs->set_succ_server_addr(succ_server);
     }
 
     ChainServerUDPLoop udp_loop(server_port);

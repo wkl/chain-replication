@@ -134,6 +134,12 @@ void prepare_msg(proto::Message &msg,
       msg.set_allocated_reply(tmp);
       break;
     }
+    case proto::Message::ACKNOWLEDGE: {
+      auto *tmp = new proto::Acknowledge();
+      tmp->CopyFrom(sub_msg);
+      msg.set_allocated_ack(tmp);
+      break;
+    }
     default:
       assert(0);  // should not reach here
       break;

@@ -5,11 +5,12 @@ message Message {
 	enum MessageType {
 		REQUEST = 0;
 		REPLY = 1;
-	//	ACKNOWLEDGE = 1;
+		ACKNOWLEDGE = 2;
 	}
 	required MessageType type = 1;
 	optional Request request = 2;
 	optional Reply reply = 3;
+	optional Acknowledge ack = 4;
 }
 
 message Address {
@@ -22,6 +23,13 @@ message Request {
 		QUERY = 0;
 		DEPOSIT = 1;
 		WITHDRAW = 2;
+		TRANSFER = 3;
+		TRANSFERTO = 4;
+	}
+	enum CheckRequest {
+		INCONSISTENT = 0;
+		PROCESSED = 1;
+		NEWREQ = 2;
 	}
 	required string req_id = 1;
 	required RequestType type = 2;
@@ -33,6 +41,7 @@ message Request {
 	optional string dest_bank_id = 8;
 	optional string dest_account_id = 9;
 	optional Reply reply = 10;
+	optional CheckRequest check_result = 11;
 }
 
 message Reply {
@@ -44,4 +53,8 @@ message Reply {
 	required string req_id = 1;
 	required Outcome outcome = 2;
 	optional float balance = 3;
+}
+
+message Acknowledge {
+	required uint32 bank_update_seq = 1;
 }
