@@ -3,6 +3,9 @@
 
 #include <string>
 
+#include <json/json.h>
+#include <glog/logging.h>
+
 class Node {
  public:
   Node(std::string ip, unsigned short port) : ip_(ip), port_(port) {}

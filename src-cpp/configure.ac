@@ -26,6 +26,12 @@ AC_CHECK_PROG([PROTOC], [protoc], [protoc])
 AS_IF([test "x${PROTOC}" == "x"],
 	[AC_MSG_ERROR([ProtoBuf compiler "protoc" not found.])])
 
+# jsoncpp
+PKG_CHECK_MODULES(JSONCPP, jsoncpp >= 0.5.0)
+
+# glog
+PKG_CHECK_MODULES(GLOG, libglog >= 0.3.0)
+
 # boost
 BOOST_REQUIRE([1.53])
 BOOST_PROGRAM_OPTIONS # will slow ./configure
