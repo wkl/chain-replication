@@ -29,7 +29,7 @@ void Client::run() {
   size_t length;
 
   try {
-    // test 0
+    // test 0 test normal deposit
     proto::Request req;
     req.set_type(proto::Request::DEPOSIT);
     req.set_req_id("bank1.client1.1");
@@ -61,7 +61,7 @@ void Client::run() {
         << msg.ShortDebugString() << std::endl;
     handle_msg(msg);
 
-    // test 1
+    // test 1 test insufficient_fund withdraw 
     req.set_type(proto::Request::WITHDRAW);
     req.set_req_id("bank1.client1.2");
     req.set_account_id("client1");
@@ -79,7 +79,7 @@ void Client::run() {
         << msg.ShortDebugString() << std::endl;
     handle_msg(msg);
 
-    // test 2
+    // test 2 test normal withdraw
     req.set_type(proto::Request::WITHDRAW);
     req.set_req_id("bank1.client1.3");
     req.set_account_id("client1");
@@ -97,7 +97,7 @@ void Client::run() {
         << msg.ShortDebugString() << std::endl;
     handle_msg(msg);
 
-    // test 3
+    // test 3 test inconsistent request
     req.set_type(proto::Request::WITHDRAW);
     req.set_req_id("bank1.client1.3");
     req.set_account_id("client1");
@@ -115,7 +115,7 @@ void Client::run() {
         << msg.ShortDebugString() << std::endl;
     handle_msg(msg);
 
-    // test 4
+    // test 4 test query
     req.set_type(proto::Request::QUERY);
     req.set_req_id("bank1.client1.4");
     req.set_account_id("client1");
