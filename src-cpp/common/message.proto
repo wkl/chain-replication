@@ -42,6 +42,7 @@ message Request {
 	optional string dest_account_id = 9;
 	optional Reply reply = 10;
 	optional CheckRequest check_result = 11;
+	optional uint32 read_seq = 12;
 }
 
 message Reply {

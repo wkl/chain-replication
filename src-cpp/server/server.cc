@@ -335,30 +335,30 @@ int main(int argc, char* argv[]) {
     if (vm.count("second")) {	// internal server
       cs->set_ishead(false);
       cs->set_istail(false);
-      server_port = 50002;
+      server_port = 50005;
       proto::Address pre_server;  // pre_server address
       pre_server.set_ip("127.0.0.1");
-      pre_server.set_port(50001);
+      pre_server.set_port(50004);
       cs->set_pre_server_addr(pre_server);
       proto::Address succ_server;  // succ_server address
       succ_server.set_ip("127.0.0.1");
-      succ_server.set_port(50003);
+      succ_server.set_port(50006);
       cs->set_succ_server_addr(succ_server);
     } else if (vm.count("third")) {	// tail server
       cs->set_ishead(false);
       cs->set_istail(true);
-      server_port = 50003;
+      server_port = 50006;
       proto::Address pre_server;  // pre_server address
       pre_server.set_ip("127.0.0.1");
-      pre_server.set_port(50002);
+      pre_server.set_port(50005);
       cs->set_pre_server_addr(pre_server);
     } else {	// head server
       cs->set_ishead(true);
       cs->set_istail(false);
-      server_port = 50001;
+      server_port = 50004;
       proto::Address succ_server;  // succ_server address
       succ_server.set_ip("127.0.0.1");
-      succ_server.set_port(50002);
+      succ_server.set_port(50006);
       cs->set_succ_server_addr(succ_server);
     }
 
