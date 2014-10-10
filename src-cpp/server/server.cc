@@ -12,8 +12,7 @@ void ChainServerUDPLoop::handle_msg(proto::Message& msg) {
       cs->receive_request(msg.mutable_request());
       break;
     default:
-      std::cerr << "no handler for message type (" << msg.type() << ")"
-                << std::endl;
+      cerr << "no handler for message type (" << msg.type() << ")" << endl;
       break;
   }
 }
@@ -29,14 +28,13 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg) {
       cs->receive_ack(msg.mutable_ack());
       break;
     default:
-      std::cerr << "no handler for message type (" << msg.type() << ")"
-                << std::endl;
+      cerr << "no handler for message type (" << msg.type() << ")" << endl;
       break;
   }
 }
 
 void ChainServer::forward_request(const proto::Request &req) {
-  std::cout << "forwarding request..." << std::endl;
+  cout << "forwarding request..." << endl;
   send_msg_tcp(cs->succ_server_addr_, proto::Message::REQUEST, req);
 }
 
@@ -49,7 +47,7 @@ void ChainServer::reply(const proto::Request& req) {
 }
 
 void ChainServer::sendback_ack(const proto::Acknowledge& ack) {
-  std::cout << "sending back acknowledge..." << std::endl;
+  cout << "sending back acknowledge..." << endl;
   send_msg_tcp(cs->pre_server_addr_, proto::Message::ACKNOWLEDGE, ack);
 }
 
@@ -63,7 +61,7 @@ void ChainServer::receive_ack(proto::Acknowledge* ack) {
     }
     cs->sent_req_list_.pop_front();
   }
-  cout<<"length of sent_req_list: "<<cs->sent_req_list_.size()<<", length of processed_update_map: "<<cs->processed_update_map_.size()<<endl;
+  cout << "length of sent_req_list: " << cs->sent_req_list_.size() << ", length of processed_update_map: " << cs->processed_update_map_.size() << endl;
   if (!cs->ishead_) {
     sendback_ack(*ack);
   }
@@ -124,7 +122,7 @@ void ChainServer::handle_query(proto::Request* req) {
 // head server handle update request
 void ChainServer::head_handle_update(proto::Request* req) {
   get_update_req_result(req);
-  cout<<"Processed request result: req_id="<<req->reply().req_id()<<", balance="<<req->reply().balance()<<endl;
+  cout << "Processed request result: req_id=" << req->reply().req_id() << ", balance=" << req->reply().balance() << endl;
   insert_sent_req_list(*req);
   cs->forward_request(*req);
 }
@@ -132,7 +130,7 @@ void ChainServer::head_handle_update(proto::Request* req) {
 // single server handle update request
 void ChainServer::single_handle_update(proto::Request* req) {
   get_update_req_result(req);
-  cout<<"Processed request result: req_id="<<req->reply().req_id()<<", balance="<<req->reply().balance()<<endl;
+  cout << "Processed request result: req_id=" << req->reply().req_id() << ", balance=" << req->reply().balance() << endl;
   if (req->check_result() == proto::Request::NEWREQ) {
     update_processed_update_list(*req);
   }
@@ -142,12 +140,12 @@ void ChainServer::single_handle_update(proto::Request* req) {
 // tail server handle update request
 void ChainServer::tail_handle_update(proto::Request* req) {
   get_update_req_result(req);
-  cout<<"Processed request result: req_id="<<req->reply().req_id()<<", balance="<<req->reply().balance()<<endl;
+  cout << "Processed request result: req_id=" << req->reply().req_id() << ", balance=" << req->reply().balance() << endl;
   if (req->check_result() == proto::Request::NEWREQ) {
     update_processed_update_list(*req);
   }
   if (req->type() != proto::Request::TRANSFERTO) {
-    cout<<"client ip: "<<req->client_addr().ip()<<", port: "<<req->client_addr().port()<<endl;
+    cout << "client ip: " << req->client_addr().ip() << ", port: " << req->client_addr().port() << endl;
     cs->reply(*req);
   }
   proto::Acknowledge ack;
@@ -158,7 +156,7 @@ void ChainServer::tail_handle_update(proto::Request* req) {
 // interval server handle update request
 void ChainServer::internal_handle_update(proto::Request* req) {
   get_update_req_result(req);
-  cout<<"Processed request result: req_id="<<req->reply().req_id()<<", balance="<<req->reply().balance()<<endl;
+  cout << "Processed request result: req_id=" << req->reply().req_id() << ", balance=" << req->reply().balance() << endl;
   insert_sent_req_list(*req);
   cs->forward_request(*req);
 }
@@ -295,85 +293,84 @@ void ChainServer::insert_sent_req_list(const proto::Request& req) {
 }
 
 // read configuration file for a server
-int read_config_server(string dir, string bankid, string chainno_str) {
+int read_config_server(string dir, string bankid, int chainno) {
   Json::Reader reader;
   Json::Value root;
   std::ifstream ifs;
   ifs.open(dir, std::ios::binary);
   if (!ifs.is_open()) { 
-    cout << "Error opening config file: "<<dir<<endl; 
+    cerr << "Fail to open the config file: " << dir << endl; 
     exit (1); 
   } 
   if (reader.parse(ifs,root)) { 
-    int chainno = std::atoi(chainno_str.c_str());	// exception?
     Json::Value bank_list_json = root[JSON_BANKS];
     for (int i = 0; i < bank_list_json.size(); i++) {
       if (bank_list_json[i][JSON_BANKID].asString() == bankid) {
         Json::Value bank_json = bank_list_json[i];
         Json::Value server_list_json = bank_json[JSON_SERVERS];
-        for (int j = 0; j < server_list_json.size(); j++) {
-          if (server_list_json[j][JSON_CHAINNO].asInt() == chainno) {
-            Json::Value server_json = server_list_json[j];
-            cs->set_bank_id(bankid);
-	    Bank bank(bankid);
-	    cs->set_bank(bank);    
-	    cs->set_ishead(false);
-	    cs->set_istail(false);
-	    if (chainno == 1) {	// check chainno?
-	      cs->set_ishead(true);
-	    }
-	    if (chainno == server_list_json.size()) {
-	      cs->set_istail(true);
-	    }
-	    proto::Address local_addr;  // local address
-            local_addr.set_ip(server_json[JSON_IP].asString());
-            local_addr.set_port(server_json[JSON_PORT].asInt());
-	    cs->set_local_addr(local_addr);
-	    if (!cs->ishead()) { // pre_server address, check chainno?
-	      Json::Value pre_server_json;
-	      bool find_res = get_server_json_with_chainno(server_list_json, pre_server_json, chainno-1);
-	      assert(find_res);
-              proto::Address pre_server;  
-      	      pre_server.set_ip(pre_server_json["ip"].asString());
-              pre_server.set_port(pre_server_json["port"].asInt());
-              cs->set_pre_server_addr(pre_server);
-	    }
-	    if (!cs->istail()) { // succ_server address, check chainno?
-	      Json::Value succ_server_json;
-	      bool find_res = get_server_json_with_chainno(server_list_json, succ_server_json, chainno+1);
-	      assert(find_res);
-              proto::Address succ_server;  
-      	      succ_server.set_ip(succ_server_json["ip"].asString());
-              succ_server.set_port(succ_server_json["port"].asInt());
-              cs->set_succ_server_addr(succ_server);
-	    }
-	   goto READ_FINISH;
+	Json::Value server_json;
+	bool find_res = get_server_json_with_chainno(server_list_json, server_json, chainno);
+	if (find_res) {
+	  cs->set_bank_id(bankid);
+	  Bank bank(bankid);
+	  cs->set_bank(bank);    
+	  cs->set_ishead(false);
+	  cs->set_istail(false);
+	  if (chainno == 1) {	// check chainno started from 1?
+	    cs->set_ishead(true);
 	  }
-        }
-        ifs.close();
-        cout << "The chainno is not in the config file: "<<dir<<endl; 
-        exit (1);
+	  if (chainno == server_list_json.size()) {
+	    cs->set_istail(true);
+	  }
+	  proto::Address local_addr;  // local address
+          local_addr.set_ip(server_json[JSON_IP].asString());
+          local_addr.set_port(server_json[JSON_PORT].asInt());
+	  cs->set_local_addr(local_addr);
+	  if (!cs->ishead()) { // pre_server address, check continuous chainno?
+	    Json::Value pre_server_json;
+	    bool find_res = get_server_json_with_chainno(server_list_json, pre_server_json, chainno-1);
+	    assert(find_res);
+            proto::Address pre_server;  
+      	    pre_server.set_ip(pre_server_json[JSON_IP].asString());
+            pre_server.set_port(pre_server_json[JSON_PORT].asInt());
+            cs->set_pre_server_addr(pre_server);
+	  }
+	  if (!cs->istail()) { // succ_server address, check continuous chainno?
+	    Json::Value succ_server_json;
+	    bool find_res = get_server_json_with_chainno(server_list_json, succ_server_json, chainno+1);
+	    assert(find_res);
+            proto::Address succ_server;  
+      	    succ_server.set_ip(succ_server_json[JSON_IP].asString());
+            succ_server.set_port(succ_server_json[JSON_PORT].asInt());
+            cs->set_succ_server_addr(succ_server);
+	  }
+	  goto READ_FINISH;        
+	} else {
+          ifs.close();
+          cerr << "The chainno is not in the config file: " << dir << endl; 
+          exit (1);
+	}
       }
     }
     ifs.close();
-    cout << "The bankid is not in the config file: "<<dir<<endl; 
+    cerr << "The bankid specified is not involved in the config file: " << dir << endl; 
     exit (1);
   } else {
     ifs.close();
-    cout << "Error parsing config file: "<<dir<<endl; 
+    cerr << "Fail to parse the config file: " << dir << endl; 
     exit (1); 
   }
 
 READ_FINISH:
-  cout<<"Server Info: bankid="<<cs->bank_id()<<", ishead="<<cs->ishead()<<", istail="<<cs->istail()
-      <<", local ip="<<cs->local_addr().ip()<<", local port="<<cs->local_addr().port();
+  cout << "Server Info: bankid=" << cs->bank_id() << ", ishead=" << cs->ishead() << ", istail=" << cs->istail()
+       << ", local ip=" << cs->local_addr().ip() << ", local port=" << cs->local_addr().port();
   if (!cs->ishead()) {
-      cout<<", pre_server ip="<<cs->pre_server_addr().ip()<<", pre_server port="<<cs->pre_server_addr().port();
+      cout << ", pre_server ip=" << cs->pre_server_addr().ip() << ", pre_server port=" << cs->pre_server_addr().port();
   }
   if (!cs->istail()) {
-      cout<<", succ_server ip="<<cs->succ_server_addr().ip()<<", succ_server port="<<cs->succ_server_addr().port();
+      cout << ", succ_server ip=" << cs->succ_server_addr().ip() << ", succ_server port=" << cs->succ_server_addr().port();
   }
-  cout<<endl;
+  cout << endl;
 
   ifs.close();
   return 0;
@@ -393,17 +390,17 @@ int main(int argc, char* argv[]) {
   try {
     po::options_description desc("Allowed options");
     desc.add_options()("help,h", "print help message")(
-        "config-file,c", po::value<string>(), "specify config file path")(
+        "config-file,c", po::value<string>(), "specify the config-file path")(
         "log-dir,l", po::value<string>(), "specify logging dir")(
         "bank-id,b", po::value<string>(), "specify the bank id")(
-	"chain-no,n", po::value<string>(), "specify the server sequence in the chain");
+	"chain-no,n", po::value<int>(), "specify the server sequence in the chain");
 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
 
     if (vm.count("help")) {
-      std::cout << desc << std::endl;
+      cout << desc << endl;
       return 0;
     }
 
@@ -418,7 +415,7 @@ int main(int argc, char* argv[]) {
     cs = std::unique_ptr<ChainServer>(new ChainServer());
 
     if (vm.count("config-file") && vm.count("bank-id") && vm.count("chain-no")) {
-      read_config_server(vm["config-file"].as<string>(), vm["bank-id"].as<string>(), vm["chain-no"].as<string>());
+      read_config_server(vm["config-file"].as<string>(), vm["bank-id"].as<string>(), vm["chain-no"].as<int>());
       ChainServerUDPLoop udp_loop(cs->local_addr().port());
       ChainServerTCPLoop tcp_loop(cs->local_addr().port());
       std::thread udp_thread(udp_loop);
@@ -427,12 +424,12 @@ int main(int argc, char* argv[]) {
       tcp_thread.join();
     }
     else {
-      cout << "Please input config-file path, bankid and chainno of the server" << endl;
+      cerr << "Please input the config-file path, bankid and the server sequence in the chain" << endl;
       return 1;
     }
 
   } catch (std::exception& e) {
-    std::cerr << "error: " << e.what() << std::endl;
+    cerr << "error: " << e.what() << endl;
     return 1;
   }
 

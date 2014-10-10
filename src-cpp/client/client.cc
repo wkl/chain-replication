@@ -10,14 +10,13 @@ void Client::handle_msg(proto::Message& msg) {
       receive_reply(msg.reply());
       break;
     default:
-      std::cerr << "no handler for message type (" << msg.type() << ")"
-                << std::endl;
+      cerr << "no handler for message type (" << msg.type() << ")" << endl;
       break;
   }
 }
 
 void Client::receive_reply(const proto::Reply& reply) {
-  std::cout << "Reply " << reply.req_id() << " received." << std::endl;
+  cout << "Reply " << reply.req_id() << " received." << endl;
 }
 
 void Client::run() {
@@ -54,12 +53,12 @@ void Client::run() {
       length = sock.receive_from(asio::buffer(data, UDP_MAX_LENGTH), sender_endpoint);
       proto::Message msg;
       assert(decode_msg(msg, data, length));
-      std::cout << "UDP message Received from: " << sender_endpoint << std::endl
-        << msg.ShortDebugString() << std::endl;
+      cout << "UDP message Received from: " << sender_endpoint << endl
+           << msg.ShortDebugString() << endl;
       handle_msg(msg);
     }
   } catch (std::exception& e) {
-    std::cerr << "error: " << e.what() << std::endl;
+    cerr << "error: " << e.what() << endl;
   }
 }
 
@@ -70,7 +69,7 @@ int read_config_client(string dir, vector<Client>& client_vector) {
   std::ifstream ifs;
   ifs.open(dir, std::ios::binary);
   if (!ifs.is_open()) { 
-    cout << "Error opening config file: "<<dir<<endl; 
+    cerr << "Fail to open the config file: " << dir << endl; 
     exit (1); 
   } 
   if(reader.parse(ifs,root)) {
@@ -85,9 +84,9 @@ int read_config_client(string dir, vector<Client>& client_vector) {
       client.set_wait_timeout(client_json[JSON_WAIT_TIMEOUT].asInt());
       client.set_resend_num(client_json[JSON_RESEND_NUM].asInt());
       client.set_if_resend(client_json[JSON_IF_RESEND].asBool());
-      cout<<"client id:"<<client.clientid()<<" ip:"<<client.ip()<<" port:"<<client.port()
-          <<" wait_timeout:"<<client.wait_timeout()<<" resend_num:"<<client.resend_num()
-          <<" if_resend:"<<client.if_resend()<<endl;
+      cout << "client id:" << client.clientid() << " ip:" << client.ip() << " port:" << client.port()
+           << " wait_timeout:" << client.wait_timeout() << " resend_num:" << client.resend_num()
+           << " if_resend:" << client.if_resend() << endl;
 
       vector<proto::Request> request_vector;
       Json::Value request_json_list = client_json[JSON_REQUESTS];
@@ -111,12 +110,12 @@ int read_config_client(string dir, vector<Client>& client_vector) {
 	  req.set_type(proto::Request::TRANSFER);
 	} else {
 	  ifs.close();
-    	  cout << "Illegal request type."<<endl; 
+    	  cerr << "The type of the request with req_id=" << req.req_id() << " is illegal" << endl; 
     	  exit (1);
 	}
 	request_vector.push_back(req);
-	cout<<"    "<<"request reqid: "<<req.req_id()<<", bankid: "<<req.bank_id()<<", accountid: "<<req.account_id()
-                    <<", seq: "<<req.read_seq()<<", type: "<<req.type()<<", amount: "<<req.amount()<<endl;
+	cout << "    " << "request reqid: " << req.req_id() << ", bankid: " << req.bank_id() << ", accountid: " << req.account_id()
+                       << ", seq: " << req.read_seq() << ", type: " << req.type() << ", amount: " << req.amount() << endl;
       }
       client.set_request_vector(request_vector); 
 
@@ -137,11 +136,11 @@ int read_config_client(string dir, vector<Client>& client_vector) {
       }
       
       client_vector.push_back(client);
-      cout<<endl;    
+      cout << endl;    
     }
   } else {
     ifs.close();
-    cout << "Error parsing config file: "<<dir<<endl; 
+    cerr << "Fail to parse the config file: " << dir << endl; 
     exit (1); 
   }
 
@@ -161,7 +160,7 @@ int main(int argc, char* argv[]) {
     po::notify(vm);
 
     if (vm.count("help")) {
-      std::cout << desc << std::endl;
+      cout << desc << endl;
       return 0;
     }
 
@@ -182,9 +181,12 @@ int main(int argc, char* argv[]) {
         std::thread t(c);
         t.join();
       }
+    } else {
+      cerr << "Please input the config-file path" << endl;
+      return 1;
     }
   } catch (std::exception& e) {
-    std::cerr << "error: " << e.what() << std::endl;
+    cerr << "error: " << e.what() << endl;
     return 1;
   }
   /*

@@ -20,6 +20,9 @@
 using std::string;
 using std::unordered_map;
 using std::vector;
+using std::cout;
+using std::endl;
+using std::cerr;
 
 class Client {
  public:

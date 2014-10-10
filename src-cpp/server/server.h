@@ -23,6 +23,7 @@ using std::unordered_map;
 using std::deque;
 using std::cout;
 using std::endl;
+using std::cerr;
 
 class ChainServer {
  public:
@@ -92,7 +93,7 @@ class ChainServerTCPLoop : public TCPLoop {
   void handle_msg(proto::Message &msg);
 };
 
-int read_config_server(string dir, string bankid, string chainno_str);
+int read_config_server(string dir, string bankid, int chainno);
 bool get_server_json_with_chainno(Json::Value server_list_json, Json::Value& result_server_json, int chainno);
 
 #endif
