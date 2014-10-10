@@ -10,7 +10,6 @@
             "clientnum": 2,
             "servers": [
                 {
-                    "serverid": "server1",
                     "ip": "127.0.0.1",
                     "port": 50001,
                     "chainno": 1,
@@ -25,7 +24,6 @@
             "clientnum": 2,
             "servers": [
                 {
-                    "serverid": "server1",
                     "ip": "127.0.0.1",
                     "port": 50002,
                     "chainno": 1,
@@ -33,7 +31,6 @@
                     "lifetime": "unbounded"
                 },
                 {
-                    "serverid": "server2",
                     "ip": "127.0.0.1",
                     "port": 50003,
                     "chainno": 2,
@@ -48,7 +45,6 @@
             "clientnum": 2,
             "servers": [
                 {
-                    "serverid": "server1",
                     "ip": "127.0.0.1",
                     "port": 50004,
                     "chainno": 1,
@@ -56,7 +52,6 @@
                     "lifetime": "unbounded"
                 },
                 {
-                    "serverid": "server2",
                     "ip": "127.0.0.1",
                     "port": 50005,
                     "chainno": 2,
@@ -64,7 +59,6 @@
                     "lifetime": "unbounded"
                 },
                 {
-                    "serverid": "server3",
                     "ip": "127.0.0.1",
                     "port": 50006,
                     "chainno": 3,

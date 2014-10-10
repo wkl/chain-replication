@@ -66,7 +66,6 @@ class Client {
   vector<proto::Request> request_vector_;
 };
 
-// global
 int read_config_client(string dir, vector<Client>& client_vector);
   
 

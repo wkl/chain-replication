@@ -63,18 +63,17 @@ void Client::run() {
   }
 }
 
-// read configuration file
+// read configuration file for clients
 int read_config_client(string dir, vector<Client>& client_vector) {
   Json::Reader reader;
   Json::Value root;
-  cout<<dir<<endl;
-  std::ifstream is;
-  is.open(dir, std::ios::binary);
-  if (!is.is_open()) { 
-    cout << "Error opening config file "<<dir<<endl; 
+  std::ifstream ifs;
+  ifs.open(dir, std::ios::binary);
+  if (!ifs.is_open()) { 
+    cout << "Error opening config file: "<<dir<<endl; 
     exit (1); 
   } 
-  if(reader.parse(is,root)) {
+  if(reader.parse(ifs,root)) {
     Json::Value client_list_json;
     client_list_json = root[JSON_CLIENTS];
     for(int i = 0; i < client_list_json.size(); i++) {
@@ -91,8 +90,7 @@ int read_config_client(string dir, vector<Client>& client_vector) {
           <<" if_resend:"<<client.if_resend()<<endl;
 
       vector<proto::Request> request_vector;
-      Json::Value request_json_list;
-      request_json_list = client_json[JSON_REQUESTS];
+      Json::Value request_json_list = client_json[JSON_REQUESTS];
       for (int j = 0; j < request_json_list.size(); j++) {
         Json::Value request_json = request_json_list[j];
         proto::Request req;
@@ -112,7 +110,7 @@ int read_config_client(string dir, vector<Client>& client_vector) {
 	} else if (type == JSON_TRANSFER) {
 	  req.set_type(proto::Request::TRANSFER);
 	} else {
-	  is.close();
+	  ifs.close();
     	  cout << "Illegal request type."<<endl; 
     	  exit (1);
 	}
@@ -122,12 +120,10 @@ int read_config_client(string dir, vector<Client>& client_vector) {
       }
       client.set_request_vector(request_vector); 
 
-      Json::Value bank_list_json;
-      bank_list_json = root[JSON_BANKS];
+      Json::Value bank_list_json = root[JSON_BANKS];
       for(int i = 0; i < bank_list_json.size(); i++) {
         Json::Value bank_json = bank_list_json[i];
-        Json::Value server_list_json;
-        server_list_json = bank_json[JSON_SERVERS];
+        Json::Value server_list_json = bank_json[JSON_SERVERS];
 	proto::Address head_addr;  // head server address
         head_addr.set_ip(server_list_json[0][JSON_IP].asString());
         head_addr.set_port(server_list_json[0][JSON_PORT].asInt());
@@ -143,14 +139,13 @@ int read_config_client(string dir, vector<Client>& client_vector) {
       client_vector.push_back(client);
       cout<<endl;    
     }
-  }
-  else {
-    is.close();
-    cout << "Error parsing config file "<<dir<<endl; 
+  } else {
+    ifs.close();
+    cout << "Error parsing config file: "<<dir<<endl; 
     exit (1); 
   }
 
-  is.close();
+  ifs.close();
   return 0;
 }
 
@@ -178,15 +173,16 @@ int main(int argc, char* argv[]) {
     google::InitGoogleLogging(argv[0]);
     LOG(INFO) << "Processing configuration file";
 
-    vector<Client> client_vector;
-    read_config_client(vm["config-file"].as<std::string>(), client_vector);
+    if (vm.count("config-file")) {
+      vector<Client> client_vector;
+      read_config_client(vm["config-file"].as<std::string>(), client_vector);
 
-    for(auto it=client_vector.begin(); it!=client_vector.end(); ++it) {
-      Client c = *it;
-      std::thread t(c);
-      t.join();
+      for(auto it=client_vector.begin(); it!=client_vector.end(); ++it) {
+        Client c = *it;
+        std::thread t(c);
+        t.join();
+      }
     }
-
   } catch (std::exception& e) {
     std::cerr << "error: " << e.what() << std::endl;
     return 1;

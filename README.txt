@@ -38,3 +38,11 @@ Fedora:
 (or Build from distribution)
 	$ ./configure
 	$ make
+
+
+2. Run test cases (for example)
+
+server/server -c ../config/test1.json -b bank3 -n 1
+server/server -c ../config/test1.json -b bank3 -n 2
+server/server -c ../config/test1.json -b bank3 -n 3
+client/client -c ../config/test1.json

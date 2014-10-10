@@ -25,6 +25,7 @@
 #define JSON_AMOUNT "amount"
 #define JSON_BANKS "banks"
 #define JSON_SERVERS "servers"
+#define JSON_CHAINNO "chainno"
 
 class Node {
  public:

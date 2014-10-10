@@ -14,6 +14,7 @@ class Bank
 public:
   //constructor
   Bank(){};
+  Bank(string bankid) : bankid_(bankid) {};
 
   // getter/setter
   void set_bankid(string bankid) { bankid_ = bankid; };

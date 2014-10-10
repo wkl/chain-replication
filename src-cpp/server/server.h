@@ -29,10 +29,7 @@ class ChainServer {
   enum class UpdateBalanceOutcome { Success, InsufficientFunds };
 
   ChainServer() {};
-  ChainServer(string bank_id) : bank_id_(bank_id) {
-    cout << "bank " << bank_id << " initialized" << endl;
-    bank_update_seq_ = 0;
-  }
+  ChainServer(string bank_id) : bank_id_(bank_id) { bank_update_seq_ = 0; }
 
   void receive_request(proto::Request *req);
   void forward_request(const proto::Request &req);
@@ -55,6 +52,10 @@ class ChainServer {
   void insert_sent_req_list(const proto::Request& req);
 
   // getter/setter
+  void set_bank_id(string bank_id) { bank_id_ = bank_id; };
+  string bank_id() { return bank_id_; };
+  void set_bank(Bank bank) { bank_ = bank; };
+  Bank& bank() { return bank_; };
   void set_ishead(bool ishead) { ishead_ = ishead; };
   bool ishead() { return ishead_; };
   void set_istail(bool istail) { istail_ = istail; };
@@ -63,6 +64,8 @@ class ChainServer {
   proto::Address& pre_server_addr() { return pre_server_addr_; };
   void set_succ_server_addr(proto::Address succ_server_addr) { succ_server_addr_ = succ_server_addr; };
   proto::Address& succ_server_addr() { return succ_server_addr_; };
+  void set_local_addr(proto::Address local_addr) { local_addr_ = local_addr; };
+  proto::Address& local_addr() { return local_addr_; };  
 
  private:
   string bank_id_;
@@ -88,6 +91,9 @@ class ChainServerTCPLoop : public TCPLoop {
   using TCPLoop::TCPLoop;
   void handle_msg(proto::Message &msg);
 };
+
+int read_config_server(string dir, string bankid, string chainno_str);
+bool get_server_json_with_chainno(Json::Value server_list_json, Json::Value& result_server_json, int chainno);
 
 #endif
 
