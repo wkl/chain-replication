@@ -183,14 +183,11 @@ int read_config_client(string dir, vector<Client>& client_vector) {
 	for (int i = 0; i < req_num; i++) {
 	  proto::Request req;
 	  // generate random data
-	  //srand((unsigned)time(0));
 	  int bank_seq = rand() % bank_list_json.size();
           string bankid = bank_list_json[bank_seq][JSON_BANKID].asString();
-	  //srand((unsigned)time(0));
 	  int account_seq = rand() % account_num;
 	  string accountid = "account" + std::to_string(account_seq + 1);
           double amount = (double)(rand() % (max_amount + 1));
-	  //srand((unsigned)time(0));
 	  int req_tmp = rand() % (prob_query + prob_deposit + prob_withdraw);
 	  auto it = genreq_map.upper_bound(req_tmp);
 	  proto::Request_RequestType type = it->second;
