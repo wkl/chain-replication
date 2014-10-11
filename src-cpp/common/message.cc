@@ -155,7 +155,8 @@ void prepare_msg(proto::Message &msg,
  *
  * @return true on success.
  */
-bool send_msg_tcp(proto::Address target, const proto::Message_MessageType msg_type,
+bool send_msg_tcp(proto::Address target,
+                  const proto::Message_MessageType msg_type,
                   const pb::Message &sub_msg) {
   asio::io_service io_service;
   tcp::socket s(io_service);
@@ -176,7 +177,8 @@ bool send_msg_tcp(proto::Address target, const proto::Message_MessageType msg_ty
   return true;
 }
 
-bool send_msg_udp(proto::Address local, proto::Address target, const proto::Message_MessageType msg_type,
+bool send_msg_udp(proto::Address local, proto::Address target,
+                  const proto::Message_MessageType msg_type,
                   const pb::Message &sub_msg) {
   asio::io_service io_service;
   udp::socket s(io_service, udp::endpoint(address::from_string(local.ip()), 0));
@@ -200,9 +202,9 @@ bool send_msg_udp(proto::Address local, proto::Address target, const proto::Mess
 }
 
 // deprecated
-bool msg_udp_loop(proto::Address local, proto::Address target, 
-                  const proto::Message_MessageType msg_type, const pb::Message &sub_msg,
-		  proto::Message& rec_msg) {
+bool msg_udp_loop(proto::Address local, proto::Address target,
+                  const proto::Message_MessageType msg_type,
+                  const pb::Message &sub_msg, proto::Message &rec_msg) {
   asio::io_service io_service;
   udp::endpoint local_endpoint(address::from_string(local.ip()), local.port());
   udp::socket sock(io_service, local_endpoint);
@@ -225,10 +227,11 @@ bool msg_udp_loop(proto::Address local, proto::Address target,
   udp::endpoint sender_endpoint;
   size_t length;
 
-  length = sock.receive_from(asio::buffer(data, UDP_MAX_LENGTH), sender_endpoint);
+  length =
+      sock.receive_from(asio::buffer(data, UDP_MAX_LENGTH), sender_endpoint);
   assert(decode_msg(rec_msg, data, length));
   LOG(INFO) << "UDP message Received from: " << sender_endpoint << std::endl
-       << rec_msg.ShortDebugString();
+            << rec_msg.ShortDebugString();
   return true;
 }
 

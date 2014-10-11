@@ -27,8 +27,8 @@ using std::cerr;
 class Client {
  public:
   // constructor
-  Client() {};
-  Client(string ip, int port) : ip_(ip), port_(port) {};
+  Client(){};
+  Client(string ip, int port) : ip_(ip), port_(port){};
 
   // thread entry
   void operator()() { run(); };
@@ -50,12 +50,24 @@ class Client {
   int resend_num() { return resend_num_; };
   void set_if_resend(bool if_resend) { if_resend_ = if_resend; };
   bool if_resend() { return if_resend_; };
-  void set_request_vector(vector<proto::Request> request_vector) { request_vector_ = request_vector; };
+  void set_request_vector(vector<proto::Request> request_vector) {
+    request_vector_ = request_vector;
+  };
   vector<proto::Request>& request_vector() { return request_vector_; };
-  void set_bank_head_list(unordered_map<string,proto::Address> bank_head_list) { bank_head_list_ = bank_head_list; };
-  unordered_map<string,proto::Address>& bank_head_list() { return bank_head_list_; };
-  void set_bank_tail_list(unordered_map<string,proto::Address> bank_tail_list) { bank_tail_list_ = bank_tail_list; };
-  unordered_map<string,proto::Address>& bank_tail_list() { return bank_tail_list_; };
+  void set_bank_head_list(
+      unordered_map<string, proto::Address> bank_head_list) {
+    bank_head_list_ = bank_head_list;
+  };
+  unordered_map<string, proto::Address>& bank_head_list() {
+    return bank_head_list_;
+  };
+  void set_bank_tail_list(
+      unordered_map<string, proto::Address> bank_tail_list) {
+    bank_tail_list_ = bank_tail_list;
+  };
+  unordered_map<string, proto::Address>& bank_tail_list() {
+    return bank_tail_list_;
+  };
 
  private:
   string ip_;
@@ -64,8 +76,8 @@ class Client {
   int wait_timeout_;
   int resend_num_;
   bool if_resend_;
-  unordered_map<string,proto::Address> bank_head_list_;	// <bankid, headaddr>
-  unordered_map<string,proto::Address> bank_tail_list_; // <bankid, tailaddr>
+  unordered_map<string, proto::Address> bank_head_list_;  // <bankid, headaddr>
+  unordered_map<string, proto::Address> bank_tail_list_;  // <bankid, tailaddr>
   vector<proto::Request> request_vector_;
 };
 

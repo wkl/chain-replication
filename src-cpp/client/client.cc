@@ -14,26 +14,27 @@ void Client::handle_msg(proto::Message& msg) {
       receive_reply(msg.reply());
       break;
     default:
-      LOG(ERROR) << "no handler for message type (" << msg.type() << ")" << endl << endl;
+      LOG(ERROR) << "no handler for message type (" << msg.type() << ")" << endl
+                 << endl;
       break;
   }
 }
 
 void Client::receive_reply(const proto::Reply& reply) {
-  //cout << "Reply " << reply.req_id() << " received." << endl;
+  // cout << "Reply " << reply.req_id() << " received." << endl;
 }
 
 void Client::run() {
   // ugly, may refactor with UDPLoop
   boost::asio::io_service io_service;
-  udp::socket sock(io_service, udp::endpoint(udp::v4(), port_)); // receiver
+  udp::socket sock(io_service, udp::endpoint(udp::v4(), port_));  // receiver
   char data[UDP_MAX_LENGTH];
   udp::endpoint sender_endpoint;
   size_t length;
 
   try {
-    for(auto it=request_vector_.begin(); it!=request_vector_.end(); ++it) {
-      proto::Request req = *it;  
+    for (auto it = request_vector_.begin(); it != request_vector_.end(); ++it) {
+      proto::Request req = *it;
       // client address
       proto::Address* local_addr = new proto::Address;
       local_addr->set_ip(ip_);
@@ -50,23 +51,29 @@ void Client::run() {
 
       // check request type and send request
       if (req.type() == proto::Request::QUERY) {
-	send_msg_seq ++;
-	send_msg_udp(*local_addr, tail_addr, proto::Message::REQUEST, req);
-        LOG(INFO) << "Client " << clientid_ << " sends udp message to " << tail_addr.ip() << ":" << tail_addr.port() << ", send_req_seq = " << send_msg_seq << endl 
-		  << req.ShortDebugString() << endl << endl;
+        send_msg_seq++;
+        send_msg_udp(*local_addr, tail_addr, proto::Message::REQUEST, req);
+        LOG(INFO) << "Client " << clientid_ << " sends udp message to "
+                  << tail_addr.ip() << ":" << tail_addr.port()
+                  << ", send_req_seq = " << send_msg_seq << endl
+                  << req.ShortDebugString() << endl << endl;
       } else {
-	send_msg_seq ++;
+        send_msg_seq++;
         send_msg_udp(*local_addr, head_addr, proto::Message::REQUEST, req);
-        LOG(INFO) << "Client " << clientid_ << " sends udp message to " << head_addr.ip() << ":" << head_addr.port() << ", send_req_seq = " << send_msg_seq << endl 
-		  << req.ShortDebugString() << endl << endl;
+        LOG(INFO) << "Client " << clientid_ << " sends udp message to "
+                  << head_addr.ip() << ":" << head_addr.port()
+                  << ", send_req_seq = " << send_msg_seq << endl
+                  << req.ShortDebugString() << endl << endl;
       }
       // receive
-      length = sock.receive_from(asio::buffer(data, UDP_MAX_LENGTH), sender_endpoint);
+      length = sock.receive_from(asio::buffer(data, UDP_MAX_LENGTH),
+                                 sender_endpoint);
       proto::Message msg;
       assert(decode_msg(msg, data, length));
-      rec_msg_seq ++;
-      LOG(INFO) << "Client " << clientid_ << " receives udp message from " << sender_endpoint << ", rec_req_seq = " << rec_msg_seq << endl 
-		<< msg.ShortDebugString() << endl << endl;
+      rec_msg_seq++;
+      LOG(INFO) << "Client " << clientid_ << " receives udp message from "
+                << sender_endpoint << ", rec_req_seq = " << rec_msg_seq << endl
+                << msg.ShortDebugString() << endl << endl;
       handle_msg(msg);
     }
   } catch (std::exception& e) {
@@ -80,14 +87,14 @@ int read_config_client(string dir, vector<Client>& client_vector) {
   Json::Value root;
   std::ifstream ifs;
   ifs.open(dir, std::ios::binary);
-  if (!ifs.is_open()) { 
-    LOG(ERROR) << "Fail to open the config file: " << dir << endl << endl; 
-    exit (1); 
-  } 
-  if(reader.parse(ifs,root)) {
+  if (!ifs.is_open()) {
+    LOG(ERROR) << "Fail to open the config file: " << dir << endl << endl;
+    exit(1);
+  }
+  if (reader.parse(ifs, root)) {
     Json::Value client_list_json;
     client_list_json = root[JSON_CLIENTS];
-    for(int i = 0; i < client_list_json.size(); i++) {
+    for (int i = 0; i < client_list_json.size(); i++) {
       Json::Value client_json = client_list_json[i];
       Client client;
       client.set_clientid(client_json[JSON_CLIENTID].asString());
@@ -96,63 +103,78 @@ int read_config_client(string dir, vector<Client>& client_vector) {
       client.set_wait_timeout(client_json[JSON_WAIT_TIMEOUT].asInt());
       client.set_resend_num(client_json[JSON_RESEND_NUM].asInt());
       client.set_if_resend(client_json[JSON_IF_RESEND].asBool());
-      LOG(INFO) << "New client initialization: " << " clientid=" << client.clientid() << ", ip=" << client.ip() << ", port=" << client.port()
-                << ", wait_timeout=" << client.wait_timeout() << ", resend_num=" << client.resend_num() << endl << endl;
+      LOG(INFO) << "New client initialization: "
+                << " clientid=" << client.clientid() << ", ip=" << client.ip()
+                << ", port=" << client.port()
+                << ", wait_timeout=" << client.wait_timeout()
+                << ", resend_num=" << client.resend_num() << endl << endl;
 
       vector<proto::Request> request_vector;
       Json::Value request_json_list = client_json[JSON_REQUESTS];
       for (int j = 0; j < request_json_list.size(); j++) {
         Json::Value request_json = request_json_list[j];
         proto::Request req;
-	req.set_bank_id(request_json[JSON_BANKID].asString());
-	req.set_account_id(request_json[JSON_ACCOUNTID].asString());
-	string req_id = req.bank_id() + "." + client.clientid() + "." + std::to_string(request_json[JSON_SEQ].asInt());
-	req.set_req_id(req_id);
-	req.set_amount(request_json[JSON_AMOUNT].asDouble());
+        req.set_bank_id(request_json[JSON_BANKID].asString());
+        req.set_account_id(request_json[JSON_ACCOUNTID].asString());
+        string req_id = req.bank_id() + "." + client.clientid() + "." +
+                        std::to_string(request_json[JSON_SEQ].asInt());
+        req.set_req_id(req_id);
+        req.set_amount(request_json[JSON_AMOUNT].asDouble());
         string type = request_json[JSON_TYPE].asString();
-	if (type == JSON_QUERY) {
-	  req.set_type(proto::Request::QUERY);
-	} else if (type == JSON_DEPOSIT) {
-	  req.set_type(proto::Request::DEPOSIT);
+        if (type == JSON_QUERY) {
+          req.set_type(proto::Request::QUERY);
+        } else if (type == JSON_DEPOSIT) {
+          req.set_type(proto::Request::DEPOSIT);
         } else if (type == JSON_WITHDRAW) {
-	  req.set_type(proto::Request::WITHDRAW);
-	} else if (type == JSON_TRANSFER) {
-	  req.set_type(proto::Request::TRANSFER);
-	} else {
-	  ifs.close();
-    	  LOG(ERROR) << "The type of the request with req_id=" << req.req_id() << " is illegal" << endl << endl; 
-    	  exit (1);
-	}
-	request_vector.push_back(req);
-	LOG_IF(INFO, type == JSON_QUERY) << "Request for client " << client.clientid() << ":" << endl << "reqid=" << req.req_id() << ", bankid=" << req.bank_id() 
- 		    			 << ", accountid=" << req.account_id() << ", req_type=" << type << endl << endl;
-	LOG_IF(INFO, type != JSON_QUERY) << "Request for client " << client.clientid() << ":" << endl << "reqid=" << req.req_id() << ", bankid=" << req.bank_id() 
-		    			 << ", accountid=" << req.account_id() << ", req_type=" << type << ", amount=" << req.amount() << endl << endl;
+          req.set_type(proto::Request::WITHDRAW);
+        } else if (type == JSON_TRANSFER) {
+          req.set_type(proto::Request::TRANSFER);
+        } else {
+          ifs.close();
+          LOG(ERROR) << "The type of the request with req_id=" << req.req_id()
+                     << " is illegal" << endl << endl;
+          exit(1);
+        }
+        request_vector.push_back(req);
+        LOG_IF(INFO, type == JSON_QUERY)
+            << "Request for client " << client.clientid() << ":" << endl
+            << "reqid=" << req.req_id() << ", bankid=" << req.bank_id()
+            << ", accountid=" << req.account_id() << ", req_type=" << type
+            << endl << endl;
+        LOG_IF(INFO, type != JSON_QUERY)
+            << "Request for client " << client.clientid() << ":" << endl
+            << "reqid=" << req.req_id() << ", bankid=" << req.bank_id()
+            << ", accountid=" << req.account_id() << ", req_type=" << type
+            << ", amount=" << req.amount() << endl << endl;
       }
-      client.set_request_vector(request_vector); 
+      client.set_request_vector(request_vector);
 
       Json::Value bank_list_json = root[JSON_BANKS];
-      for(int i = 0; i < bank_list_json.size(); i++) {
+      for (int i = 0; i < bank_list_json.size(); i++) {
         Json::Value bank_json = bank_list_json[i];
         Json::Value server_list_json = bank_json[JSON_SERVERS];
-	proto::Address head_addr;  // head server address
+        proto::Address head_addr;  // head server address
         head_addr.set_ip(server_list_json[0][JSON_IP].asString());
         head_addr.set_port(server_list_json[0][JSON_PORT].asInt());
-	proto::Address tail_addr;  // tail server address
-        tail_addr.set_ip(server_list_json[server_list_json.size()-1][JSON_IP].asString());
-        tail_addr.set_port(server_list_json[server_list_json.size()-1][JSON_PORT].asInt());
-        auto it_head = client.bank_head_list().insert(std::make_pair(bank_json[JSON_BANKID].asString(), head_addr));
-    	assert(it_head.second);
-	auto it_tail = client.bank_tail_list().insert(std::make_pair(bank_json[JSON_BANKID].asString(), tail_addr));
-    	assert(it_tail.second);
+        proto::Address tail_addr;  // tail server address
+        tail_addr.set_ip(
+            server_list_json[server_list_json.size() - 1][JSON_IP].asString());
+        tail_addr.set_port(
+            server_list_json[server_list_json.size() - 1][JSON_PORT].asInt());
+        auto it_head = client.bank_head_list().insert(
+            std::make_pair(bank_json[JSON_BANKID].asString(), head_addr));
+        assert(it_head.second);
+        auto it_tail = client.bank_tail_list().insert(
+            std::make_pair(bank_json[JSON_BANKID].asString(), tail_addr));
+        assert(it_tail.second);
       }
-      
-      client_vector.push_back(client); 
+
+      client_vector.push_back(client);
     }
   } else {
     ifs.close();
-    LOG(ERROR) << "Fail to parse the config file: " << dir << endl << endl; 
-    exit (1); 
+    LOG(ERROR) << "Fail to parse the config file: " << dir << endl << endl;
+    exit(1);
   }
 
   ifs.close();
@@ -174,7 +196,7 @@ int main(int argc, char* argv[]) {
       cout << desc << endl;
       return 0;
     }
-   
+
     FLAGS_logtostderr = true;
     if (vm.count("log-dir")) {
       string log_dir = vm["log-dir"].as<std::string>() + "/client";
@@ -189,9 +211,10 @@ int main(int argc, char* argv[]) {
     if (vm.count("config-file")) {
       vector<Client> client_vector;
       read_config_client(vm["config-file"].as<std::string>(), client_vector);
-      LOG(INFO) << "Finish processing configuration file. Start the clients." << endl << endl;
+      LOG(INFO) << "Finish processing configuration file. Start the clients."
+                << endl << endl;
 
-      for(auto it=client_vector.begin(); it!=client_vector.end(); ++it) {
+      for (auto it = client_vector.begin(); it != client_vector.end(); ++it) {
         Client c = *it;
         std::thread t(c);
         t.join();
