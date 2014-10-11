@@ -170,16 +170,16 @@ bool send_msg_tcp(proto::Address target, const proto::Message_MessageType msg_ty
   encode_msg(msg, buf, buf_size);
   std::cout << "Sending TCP message..."
             << " from: " << s.local_endpoint() << " to: " << s.remote_endpoint()
-            << std::endl << msg.ShortDebugString() << std::endl;
+            << std::endl << sub_msg.ShortDebugString() << std::endl;
   asio::write(s, asio::buffer(buf, buf_size));
 
   return true;
 }
 
-bool send_msg_udp(proto::Address target, const proto::Message_MessageType msg_type,
+bool send_msg_udp(proto::Address local, proto::Address target, const proto::Message_MessageType msg_type,
                   const pb::Message &sub_msg) {
   asio::io_service io_service;
-  udp::socket s(io_service, udp::endpoint(udp::v4(), 0));
+  udp::socket s(io_service, udp::endpoint(address::from_string(local.ip()), 0));
   udp::endpoint endpoint(address::from_string(target.ip()), target.port());
 
   proto::Message msg;
@@ -189,11 +189,46 @@ bool send_msg_udp(proto::Address target, const proto::Message_MessageType msg_ty
   assert(buf_size < UDP_MAX_LENGTH);
   char buf[buf_size];
   encode_msg(msg, buf, buf_size);
-  std::cout << "Sending UDP message..."
+  /*
+  LOG(INFO) << "Sending UDP message..."
             << " from: " << s.local_endpoint() << " to: " << endpoint
-            << std::endl << msg.ShortDebugString() << std::endl;
+            << std::endl << msg.ShortDebugString();
+  */
   s.send_to(asio::buffer(buf, buf_size), endpoint);
 
+  return true;
+}
+
+// deprecated
+bool msg_udp_loop(proto::Address local, proto::Address target, 
+                  const proto::Message_MessageType msg_type, const pb::Message &sub_msg,
+		  proto::Message& rec_msg) {
+  asio::io_service io_service;
+  udp::endpoint local_endpoint(address::from_string(local.ip()), local.port());
+  udp::socket sock(io_service, local_endpoint);
+  // send
+  udp::endpoint dest_endpoint(address::from_string(target.ip()), target.port());
+  proto::Message send_msg;
+  prepare_msg(send_msg, msg_type, sub_msg);
+
+  size_t buf_size = send_msg.ByteSize() + 4;
+  assert(buf_size < UDP_MAX_LENGTH);
+  char buf[buf_size];
+  encode_msg(send_msg, buf, buf_size);
+  LOG(INFO) << "Sending UDP message..."
+            << " from: " << sock.local_endpoint() << " to: " << dest_endpoint
+            << std::endl << send_msg.ShortDebugString();
+  sock.send_to(asio::buffer(buf, buf_size), dest_endpoint);
+
+  // receive
+  char data[UDP_MAX_LENGTH];
+  udp::endpoint sender_endpoint;
+  size_t length;
+
+  length = sock.receive_from(asio::buffer(data, UDP_MAX_LENGTH), sender_endpoint);
+  assert(decode_msg(rec_msg, data, length));
+  LOG(INFO) << "UDP message Received from: " << sender_endpoint << std::endl
+       << rec_msg.ShortDebugString();
   return true;
 }
 

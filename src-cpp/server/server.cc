@@ -5,6 +5,10 @@ namespace po = boost::program_options;
 
 std::unique_ptr<ChainServer> cs;
 
+// global
+int send_msg_seq = 0;
+int rec_msg_seq = 0;
+
 void ChainServerUDPLoop::handle_msg(proto::Message& msg) {
   switch (msg.type()) {
     case proto::Message::REQUEST:
@@ -12,7 +16,7 @@ void ChainServerUDPLoop::handle_msg(proto::Message& msg) {
       cs->receive_request(msg.mutable_request());
       break;
     default:
-      cerr << "no handler for message type (" << msg.type() << ")" << endl;
+      LOG(ERROR) << "no handler for message type (" << msg.type() << ")" << endl << endl;
       break;
   }
 }
@@ -28,14 +32,14 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg) {
       cs->receive_ack(msg.mutable_ack());
       break;
     default:
-      cerr << "no handler for message type (" << msg.type() << ")" << endl;
+      LOG(ERROR) << "no handler for message type (" << msg.type() << ")" << endl << endl;
       break;
   }
 }
 
 void ChainServer::forward_request(const proto::Request &req) {
   cout << "forwarding request..." << endl;
-  send_msg_tcp(cs->succ_server_addr_, proto::Message::REQUEST, req);
+  send_msg_tcp(succ_server_addr_, proto::Message::REQUEST, req);
 }
 
 void ChainServer::reply(const proto::Request& req) {
@@ -43,26 +47,26 @@ void ChainServer::reply(const proto::Request& req) {
   proto::Address client;
   client.set_ip(req.client_addr().ip());
   client.set_port(req.client_addr().port());
-  send_msg_udp(client, proto::Message::REPLY, reply);
+  send_msg_udp(local_addr_, client, proto::Message::REPLY, reply);
 }
 
 void ChainServer::sendback_ack(const proto::Acknowledge& ack) {
   cout << "sending back acknowledge..." << endl;
-  send_msg_tcp(cs->pre_server_addr_, proto::Message::ACKNOWLEDGE, ack);
+  send_msg_tcp(pre_server_addr_, proto::Message::ACKNOWLEDGE, ack);
 }
 
 void ChainServer::receive_ack(proto::Acknowledge* ack) {
-  while (!cs->sent_req_list_.empty() && cs->sent_req_list_.front().bank_update_seq()<=ack->bank_update_seq()) {
-    proto::Request req = cs->sent_req_list_.front();
-    auto it = (cs->processed_update_map_).find(req.req_id());
-    if (it == (cs->processed_update_map_).end()) {  // request doesn't exists in processed_update_map_
-      auto it_insert = cs->processed_update_map_.insert(std::make_pair(req.req_id(), req));
+  while (!sent_req_list_.empty() && sent_req_list_.front().bank_update_seq()<=ack->bank_update_seq()) {
+    proto::Request req = sent_req_list_.front();
+    auto it = (processed_update_map_).find(req.req_id());
+    if (it == (processed_update_map_).end()) {  // request doesn't exists in processed_update_map_
+      auto it_insert = processed_update_map_.insert(std::make_pair(req.req_id(), req));
       assert(it_insert.second);
     }
-    cs->sent_req_list_.pop_front();
+    sent_req_list_.pop_front();
   }
-  cout << "length of sent_req_list: " << cs->sent_req_list_.size() << ", length of processed_update_map: " << cs->processed_update_map_.size() << endl;
-  if (!cs->ishead_) {
+  cout << "length of sent_req_list: " << sent_req_list_.size() << ", length of processed_update_map: " << processed_update_map_.size() << endl;
+  if (!ishead_) {
     sendback_ack(*ack);
   }
 }
@@ -70,40 +74,40 @@ void ChainServer::receive_ack(proto::Acknowledge* ack) {
 void ChainServer::receive_request(proto::Request* req) {
   // processing query request
   if (req->type() == proto::Request::QUERY) {
-    assert(cs->istail_);
+    assert(istail_);
     handle_query(req);
     return;
   }
   // processing update request
   assert(req->type() != proto::Request::QUERY);
   // head server
-  if (cs->ishead_ && !cs->istail_) {
-    cs->bank_update_seq_ ++;        // sequence of update request
-    req->set_bank_update_seq(cs->bank_update_seq_);
+  if (ishead_ && !istail_) {
+    bank_update_seq_ ++;        // sequence of update request
+    req->set_bank_update_seq(bank_update_seq_);
     head_handle_update(req);
     return;
   }
   // only one server
-  if (cs->ishead_ && cs->istail_) {        
-    cs->bank_update_seq_ ++;        // sequence of update request
-    req->set_bank_update_seq(cs->bank_update_seq_);
+  if (ishead_ && istail_) {        
+    bank_update_seq_ ++;        // sequence of update request
+    req->set_bank_update_seq(bank_update_seq_);
     single_handle_update(req);
     return;
   }
   // ignore duplicate update request which is possible when handling failure
-  if (cs->bank_update_seq_ >= req->bank_update_seq()) {
+  if (bank_update_seq_ >= req->bank_update_seq()) {
         return;
   }
   // assertion based on our FIFO request forwarding assumption
-  assert(cs->bank_update_seq_ == req->bank_update_seq() - 1);
-  cs->bank_update_seq_ = req->bank_update_seq();
+  assert(bank_update_seq_ == req->bank_update_seq() - 1);
+  bank_update_seq_ = req->bank_update_seq();
   // tail server
-  if (!cs->ishead_ && cs->istail_) {
+  if (!ishead_ && istail_) {
     tail_handle_update(req);
     return;
   }
   // internal server
-  assert(!cs->ishead_ && !cs->istail_);
+  assert(!ishead_ && !istail_);
   internal_handle_update(req);
   return;
 }
@@ -124,7 +128,7 @@ void ChainServer::head_handle_update(proto::Request* req) {
   get_update_req_result(req);
   cout << "Processed request result: req_id=" << req->reply().req_id() << ", balance=" << req->reply().balance() << endl;
   insert_sent_req_list(*req);
-  cs->forward_request(*req);
+  forward_request(*req);
 }
 
 // single server handle update request
@@ -146,7 +150,7 @@ void ChainServer::tail_handle_update(proto::Request* req) {
   }
   if (req->type() != proto::Request::TRANSFERTO) {
     cout << "client ip: " << req->client_addr().ip() << ", port: " << req->client_addr().port() << endl;
-    cs->reply(*req);
+    reply(*req);
   }
   proto::Acknowledge ack;
   ack.set_bank_update_seq(req->bank_update_seq());
@@ -158,7 +162,7 @@ void ChainServer::internal_handle_update(proto::Request* req) {
   get_update_req_result(req);
   cout << "Processed request result: req_id=" << req->reply().req_id() << ", balance=" << req->reply().balance() << endl;
   insert_sent_req_list(*req);
-  cs->forward_request(*req);
+  forward_request(*req);
 }
 
 // used in all the xxxx_handle_update
@@ -196,10 +200,10 @@ proto::Request_CheckRequest ChainServer::check_update_request(const proto::Reque
   if (!ifexisted_account) {
     return proto::Request::NEWREQ;
   } else {
-    auto it = (cs->processed_update_map_).find(req.req_id());
-    if (it == (cs->processed_update_map_).end()) {  // request doesn't exist in processed_update_map_
-      if ((cs->sent_req_list_).size() > 0) {
-        for(auto it_queue=(cs->sent_req_list_).begin(); it_queue!=(cs->sent_req_list_).end(); ++it_queue) {
+    auto it = (processed_update_map_).find(req.req_id());
+    if (it == (processed_update_map_).end()) {  // request doesn't exist in processed_update_map_
+      if ((sent_req_list_).size() > 0) {
+        for(auto it_queue=(sent_req_list_).begin(); it_queue!=(sent_req_list_).end(); ++it_queue) {
           if (req.req_id() == (*it_queue).req_id()) { // request exists in sent_req_list_
 	    bool if_req_consistent = check_req_consistency(req, *it_queue);
             if (if_req_consistent) {	// consistent request
@@ -226,10 +230,10 @@ proto::Request_CheckRequest ChainServer::check_update_request(const proto::Reque
 // get or create account object
 Account& ChainServer::get_or_create_account(const proto::Request& req, bool* ifexisted_account) {
   string account_id = req.account_id();
-  auto it = cs->bank_.account_map().find(account_id);
-  if (it == cs->bank_.account_map().end()) {  // account doesn't exist, create a new account
+  auto it = bank_.account_map().find(account_id);
+  if (it == bank_.account_map().end()) {  // account doesn't exist, create a new account
     Account account(account_id, 0);
-    auto it_insert = cs->bank_.account_map().insert(std::make_pair(account_id, account));
+    auto it_insert = bank_.account_map().insert(std::make_pair(account_id, account));
     assert(it_insert.second);
     *ifexisted_account = false;
     return (it_insert.first)->second;
@@ -253,10 +257,10 @@ bool ChainServer::check_req_consistency(const proto::Request& req1, const proto:
 // used in handle_query
 float ChainServer::get_balance(string account_id) {
   float balance = 0;
-  auto it = cs->bank_.account_map().find(account_id);
-  if (it == cs->bank_.account_map().end()) {  // account doesn't exist, create a new account
+  auto it = bank_.account_map().find(account_id);
+  if (it == bank_.account_map().end()) {  // account doesn't exist, create a new account
     Account account(account_id, 0);
-    auto it2 = cs->bank_.account_map().insert(std::make_pair(account_id, account));
+    auto it2 = bank_.account_map().insert(std::make_pair(account_id, account));
     assert(it2.second);
   } else {  // get balance of the account
     balance = (*it).second.balance();
@@ -283,13 +287,13 @@ ChainServer::UpdateBalanceOutcome ChainServer::update_balance(const proto::Reque
 
 // used in tail_handle_update(req) and single_handle_update(req)
 void ChainServer::update_processed_update_list(const proto::Request& req) {
-  auto it = cs->processed_update_map_.insert(std::make_pair(req.req_id(), req));
+  auto it = processed_update_map_.insert(std::make_pair(req.req_id(), req));
   assert(it.second);
 }
 
 // used in head_handle_update(req) and interval_handle_update(req)
 void ChainServer::insert_sent_req_list(const proto::Request& req) {
-  cs->sent_req_list_.push_back(req);	// insert at the end of deque
+  sent_req_list_.push_back(req);	// insert at the end of deque
 }
 
 // read configuration file for a server
@@ -299,7 +303,7 @@ int read_config_server(string dir, string bankid, int chainno) {
   std::ifstream ifs;
   ifs.open(dir, std::ios::binary);
   if (!ifs.is_open()) { 
-    cerr << "Fail to open the config file: " << dir << endl; 
+    LOG(ERROR) << "Fail to open the config file: " << dir << endl << endl; 
     exit (1); 
   } 
   if (reader.parse(ifs,root)) { 
@@ -347,30 +351,33 @@ int read_config_server(string dir, string bankid, int chainno) {
 	  goto READ_FINISH;        
 	} else {
           ifs.close();
-          cerr << "The chainno is not in the config file: " << dir << endl; 
+          LOG(ERROR) << "The chainno is not in the config file: " << dir << endl << endl; 
           exit (1);
 	}
       }
     }
     ifs.close();
-    cerr << "The bankid specified is not involved in the config file: " << dir << endl; 
+    LOG(ERROR) << "The bankid specified is not involved in the config file: " << dir << endl << endl; 
     exit (1);
   } else {
     ifs.close();
-    cerr << "Fail to parse the config file: " << dir << endl; 
+    LOG(ERROR) << "Fail to parse the config file: " << dir << endl << endl; 
     exit (1); 
   }
 
 READ_FINISH:
-  cout << "Server Info: bankid=" << cs->bank_id() << ", ishead=" << cs->ishead() << ", istail=" << cs->istail()
-       << ", local ip=" << cs->local_addr().ip() << ", local port=" << cs->local_addr().port();
-  if (!cs->ishead()) {
-      cout << ", pre_server ip=" << cs->pre_server_addr().ip() << ", pre_server port=" << cs->pre_server_addr().port();
-  }
-  if (!cs->istail()) {
-      cout << ", succ_server ip=" << cs->succ_server_addr().ip() << ", succ_server port=" << cs->succ_server_addr().port();
-  }
-  cout << endl;
+  LOG_IF(INFO, (cs->ishead() && !cs->istail())) << "New server initialization: bankid=" << cs->bank_id() << ", head server"
+	 << ", local ip=" << cs->local_addr().ip() << ", local port=" << cs->local_addr().port()
+	 << ", succ_server ip=" << cs->succ_server_addr().ip() << ", succ_server port=" << cs->succ_server_addr().port() << endl << endl;
+  LOG_IF(INFO, (!cs->ishead() && cs->istail())) << "New server initialization: bankid=" << cs->bank_id() << ", tail server"
+	 << ", local ip=" << cs->local_addr().ip() << ", local port=" << cs->local_addr().port()
+	 << ", pre_server ip=" << cs->pre_server_addr().ip() << ", pre_server port=" << cs->pre_server_addr().port() << endl << endl;
+  LOG_IF(INFO, (!cs->ishead() && !cs->istail())) << "New server initialization: bankid=" << cs->bank_id() << ", internal server"
+	 << ", local ip=" << cs->local_addr().ip() << ", local port=" << cs->local_addr().port()
+	 << ", pre_server ip=" << cs->pre_server_addr().ip() << ", pre_server port=" << cs->pre_server_addr().port()  
+	 << ", succ_server ip=" << cs->succ_server_addr().ip() << ", succ_server port=" << cs->succ_server_addr().port() << endl << endl;
+  LOG_IF(INFO, (cs->ishead() && cs->istail())) << "New server initialization: bankid=" << cs->bank_id() << ", single server"
+	 << ", local ip=" << cs->local_addr().ip() << ", local port=" << cs->local_addr().port() << endl << endl; 
 
   ifs.close();
   return 0;
@@ -405,12 +412,21 @@ int main(int argc, char* argv[]) {
     }
 
     FLAGS_logtostderr = true;
-    if (vm.count("log-dir")) {
-      FLAGS_log_dir = vm["log-dir"].as<string>();
+    if (vm.count("log-dir") && vm.count("config-file") && vm.count("bank-id") && vm.count("chain-no")) {
+      //FLAGS_log_dir = vm["log-dir"].as<string>();
+      string log_dir = vm["log-dir"].as<std::string>() + "/server";
+      mkdir(log_dir.c_str(), 0777);
+      FLAGS_log_dir = log_dir;	
       FLAGS_logtostderr = false;
+      FLAGS_logbuflevel = -1;
+      string log_name = "server_" + vm["bank-id"].as<string>() + "_No" + std::to_string(vm["chain-no"].as<int>());
+      google::InitGoogleLogging(log_name.c_str());
+    } else {
+      FLAGS_logbuflevel = -1;
+      google::InitGoogleLogging(argv[0]);
     }
-    google::InitGoogleLogging(argv[0]);
-    LOG(INFO) << "Processing configuration file";
+
+    LOG(INFO) << "Processing configuration file" << endl << endl;
 
     cs = std::unique_ptr<ChainServer>(new ChainServer());
 
@@ -424,12 +440,12 @@ int main(int argc, char* argv[]) {
       tcp_thread.join();
     }
     else {
-      cerr << "Please input the config-file path, bankid and the server sequence in the chain" << endl;
+      LOG(ERROR) << "Please input the config-file path, bankid and the server sequence in the chain" << endl << endl;
       return 1;
     }
 
   } catch (std::exception& e) {
-    cerr << "error: " << e.what() << endl;
+    LOG(ERROR) << "error: " << e.what() << endl << endl;
     return 1;
   }
 
