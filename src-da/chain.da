@@ -1,0 +1,241 @@
+import sys
+from enum import Enum
+
+class RequestType(Enum):
+    QUERY = 0
+    DEPOSIT = 1
+    WITHDRAW = 2
+    TRANSFER = 3
+
+class CheckExistingResult(Enum):
+    NEWREQ = 0
+    PROCESSED = 1
+    INCONSISTENT = 2
+
+class UpdateBalanceOutcome(Enum):
+    INSUFFICIENTFUNDS = 0
+    SUCCESS = 1
+
+class Outcome(Enum):
+    PROCESSED = 0
+    INCONSISTENT_WITH_HISTORY = 1
+    INSUFFICIENT_FUNDS = 2
+
+class Server(process):
+    def setup(server_id, bank_id, pre, succ):
+        self.is_head = True if not pre else False
+        self.is_tail = True if not succ else False
+
+        self.bank = Bank(bank_id)
+        self.bank_update_seq = 0
+        self.processed = {}
+        self.sent = {}
+
+    def main():
+        await(0)
+
+    def receive(msg=('REQUEST', req), from_=c):
+        output("Received Request %s" % req)
+        if req.type == RequestType.QUERY:
+            assert(self.is_tail)
+            self.handle_query(req, c)
+            return
+
+        assert(req.type != RequestType.QUERY)
+
+        # head server
+        if self.is_head and not self.is_tail:
+            self.bank_update_seq += 1
+            req.bank_update_seq = self.bank_update_seq
+            req.client = c
+            return self.head_handle_request(req)
+
+        # only one server
+        if (self.is_head and self.is_tail):
+            self.bank_update_seq += 1
+            req.bank_update_seq = self.bank_update_seq
+            req.client = c
+            return self.single_handle_request(req)
+
+    def forward_request(req):
+        output("Forwarding req to %d: %s" % (succ, req))
+        send(("REQUEST", req), to=succ)
+
+    def reply(req):
+        output("Replying req to %d: %s" % (req.client, req))
+        send(("REQUEST", req), to=req.client)
+
+    def head_handle_request(req):
+        self.update_request_reply(req)
+        self.sent.append(req)
+        self.forward_request(req)
+
+    def single_handle_request(req):
+        self.update_request_reply(req)
+        if req.check_result == CheckExistingResult.NEWREQ:
+            self.update_processed_list(req)
+        self.reply(req)
+
+    def update_processed_list(req):
+        req = self.processed.get(req.req_id)
+        if not req:
+            self.processed[req.req_id] = req
+
+    # calculate reply
+    def update_request_reply(req):
+        req.check_result = self.check_existing_request(req)
+        reply = Reply(req)
+        if req.check_result == CheckExistingResult.INCONSISTENT:
+            reply.outcome = Outcome.INCONSISTENT_WITH_HISTORY
+        elif req.check_result == CheckExistingResult.PROCESSED:
+            reply.outcome = Outcome.PROCESSED
+        elif req.check_result == CheckExistingResult.NEWREQ:
+            update_result = self.bank.update_balance(req)
+            if update_result == UpdateBalanceOutcome.INSUFFICIENTFUNDS:
+                reply.outcome = Outcome.INSUFFICIENT_FUNDS
+            else:
+                reply.outcome = Outcome.PROCESSED
+        else:
+            assert(0)
+
+        reply.balance = self.bank.get_balance(req.account_id)
+        req.reply = reply
+
+    def check_existing_request(req):
+        account, is_new = self.bank.get_or_create_account(req.account_id)
+        if is_new:
+            return CheckExistingResult.NEWREQ
+
+        processed_req = self.processed.get(req.req_id)
+        if processed_req:
+            if req.consistent_with(processed_req):
+                return CheckExistingResult.PROCESSED
+            else:
+                return CheckExistingResult.INCONSISTENT
+
+        for sent_req in self.sent:
+            if req.req_id == sent_req.req_id:
+                if req.consistent_with(sent_req):
+                    return CheckExistingResult.PROCESSED
+                else:
+                    return CheckExistingResult.INCONSISTENT
+
+        return CheckExistingResult.NEWREQ
+
+    def handle_query(req, c):
+        reply = Reply(req)
+        reply.type = req.type
+        reply.account_id = req.account_id
+        reply.balance = self.bank.get_balance(req.account_id)
+        send(('REPLY', reply), to=c)
+
+class Bank:
+    def __init__(self, bank_id):
+        self.bank_id = bank_id
+        self.accounts = {}
+
+    def get_balance(self, account_id):
+        account, is_new = self.get_or_create_account(account_id)
+        return account.balance
+
+    def get_or_create_account(self, account_id):
+        account = self.accounts.get(account_id, None)
+        is_new = False
+        if not account:
+            account = self.accounts[account_id] = Account(account_id, 0)
+            is_new = True
+        return account, is_new
+
+    def update_balance(self, req):
+        account = get_or_create_account(req.account_id)
+        if req.type in (RequestType.WITHDRAW, RequestType.TRANSFER):
+            if account.balance < req.amount:
+                return UpdateBalanceOutcome.INSUFFICIENTFUNDS
+            else:
+                account.balance = account.balance - req.amount
+                return UpdateBalanceOutcome.SUCCESS
+        elif req.type == RequestType.DEPOSIT:
+            account.balance = account.balance + req.amount
+            return UpdateBalanceOutcome.SUCCESS
+
+class Account:
+    def __init__(self, account_id, balance):
+        self.account_id = account_id
+        self.balance = balance
+
+class Client(process):
+    def setup(client_id, bank_heads, bank_tails):
+        pass
+
+    def main():
+        count = 1
+        while True:
+            bank = 'boa'
+            req_id = "%s.%d.%d" % (bank, client_id, count)
+            count += 1
+
+            req = Request(req_id, RequestType.QUERY, 'wkl', 0)
+            send(('REQUEST', req), to=bank_tails[bank])
+            # await(some(received(('REPLY', reply), has=(reply.req_id == req_id))))
+            await(0)
+            break
+
+    def receive(msg=('REPLY', reply), from_=c):
+        output("Received Reply %s" % reply)
+
+class Request:
+    def __init__(self, req_id, type, account_id, amount):
+        self.req_id = req_id
+        self.type = type
+        self.account_id = account_id
+        self.amount = amount
+        self.reply = None
+
+    def __str__(self):
+        return "ReqID: %s, Type: %s, Account ID: %s, Amount: %d" % (
+                self.req_id, self.type.name, self.account_id, self.amount)
+
+    def consistent_with(self, req):
+        return (self.type, self.account_id, self.bank_id, self.amount) == \
+                (req.type, req.account_id, req.bank_id, req.amount)
+
+class Reply:
+    def __init__(self, req):
+        self.req_id = req.req_id
+        self.type = req.type
+        self.account_id = req.account_id
+        self.balance = 0
+
+    def __str__(self):
+        return "ReqID: %s, Balance: %d" % (self.req_id, self.balance)
+
+def main():
+    config(channel="fifo")
+
+    banks = ['boa', 'citi']
+    bank_heads = {}
+    bank_tails = {}
+
+    for bank in banks[:1]:
+        num_server = 2
+        servers = list(new(Server, num = num_server))
+        for (i, server) in enumerate(servers):
+            if i == 0:
+                bank_heads[bank] = server
+                pre = None
+            else:
+                pre = servers[i-1]
+
+            if i == num_server - 1:
+                bank_tails[bank] = server
+                succ = None
+            else:
+                succ = servers[i+1]
+
+            setup(server, (i, bank, pre, succ))
+            start(server)
+
+    client = new(Client, num = 1)
+    setup(client, (1, bank_heads, bank_tails))
+    start(client)
+
