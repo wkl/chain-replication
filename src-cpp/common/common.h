@@ -38,4 +38,8 @@ class Node {
   unsigned short port_;
 };
 
+// global
+extern int send_msg_seq;
+extern int rec_msg_seq;
+
 #endif

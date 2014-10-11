@@ -29,7 +29,7 @@ class ChainServer {
  public:
   enum class UpdateBalanceOutcome { Success, InsufficientFunds };
 
-  ChainServer(){};
+  ChainServer(){ bank_update_seq_ = 0; };
   ChainServer(string bank_id) : bank_id_(bank_id) { bank_update_seq_ = 0; }
 
   void receive_request(proto::Request* req);
@@ -51,6 +51,8 @@ class ChainServer {
   ChainServer::UpdateBalanceOutcome update_balance(const proto::Request& req);
   void update_processed_update_list(const proto::Request& req);
   void insert_sent_req_list(const proto::Request& req);
+  void pop_sent_req_list(string req_id);
+  void write_log_reply(const proto::Reply& reply);
 
   // getter/setter
   void set_bank_id(string bank_id) { bank_id_ = bank_id; };
@@ -90,12 +92,12 @@ class ChainServer {
 
 class ChainServerUDPLoop : public UDPLoop {
   using UDPLoop::UDPLoop;  // inherit constructor
-  void handle_msg(proto::Message& msg);
+  void handle_msg(proto::Message& msg, proto::Address &from_addr);
 };
 
 class ChainServerTCPLoop : public TCPLoop {
   using TCPLoop::TCPLoop;
-  void handle_msg(proto::Message& msg);
+  void handle_msg(proto::Message& msg, proto::Address &from_addr);
 };
 
 // global

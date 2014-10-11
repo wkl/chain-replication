@@ -5,14 +5,14 @@ namespace po = boost::program_options;
 
 std::unique_ptr<ChainServer> cs;
 
-// global
-int send_msg_seq = 0;
-int rec_msg_seq = 0;
-
-void ChainServerUDPLoop::handle_msg(proto::Message& msg) {
+void ChainServerUDPLoop::handle_msg(proto::Message& msg, proto::Address& from_addr) {
+  rec_msg_seq ++;
   switch (msg.type()) {
     case proto::Message::REQUEST:
       assert(msg.has_request());
+      LOG(INFO) << "Server received udp message from "
+                << from_addr.ip() << ":" << from_addr.port() << ", rec_req_seq = " << rec_msg_seq << endl
+                << msg.ShortDebugString() << endl << endl; 
       cs->receive_request(msg.mutable_request());
       break;
     default:
@@ -22,14 +22,21 @@ void ChainServerUDPLoop::handle_msg(proto::Message& msg) {
   }
 }
 
-void ChainServerTCPLoop::handle_msg(proto::Message& msg) {
+void ChainServerTCPLoop::handle_msg(proto::Message& msg, proto::Address& from_addr) {
+  rec_msg_seq ++;
   switch (msg.type()) {
     case proto::Message::REQUEST:
       assert(msg.has_request());
+      LOG(INFO) << "Server received tcp message from "
+                << from_addr.ip() << ":" << from_addr.port() << ", rec_req_seq = " << rec_msg_seq << endl
+                << msg.ShortDebugString() << endl << endl;     
       cs->receive_request(msg.mutable_request());
       break;
     case proto::Message::ACKNOWLEDGE:
       assert(msg.has_ack());
+      LOG(INFO) << "Server received tcp message from "
+                << from_addr.ip() << ":" << from_addr.port() << ", rec_req_seq = " << rec_msg_seq << endl
+                << msg.ShortDebugString() << endl << endl;
       cs->receive_ack(msg.mutable_ack());
       break;
     default:
@@ -40,8 +47,12 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg) {
 }
 
 void ChainServer::forward_request(const proto::Request& req) {
-  cout << "forwarding request..." << endl;
   send_msg_tcp(succ_server_addr_, proto::Message::REQUEST, req);
+  send_msg_seq ++;
+  LOG(INFO) << "Server sent tcp message to "
+            << succ_server_addr_.ip() << ":" << succ_server_addr_.port()
+            << ", send_req_seq = " << send_msg_seq << endl
+            << req.ShortDebugString() << endl << endl;
 }
 
 void ChainServer::reply(const proto::Request& req) {
@@ -50,28 +61,29 @@ void ChainServer::reply(const proto::Request& req) {
   client.set_ip(req.client_addr().ip());
   client.set_port(req.client_addr().port());
   send_msg_udp(local_addr_, client, proto::Message::REPLY, reply);
+  send_msg_seq ++;
+  LOG(INFO) << "Server sent udp message to "
+            << client.ip() << ":" << client.port()
+            << ", send_req_seq = " << send_msg_seq << endl
+            << req.ShortDebugString() << endl << endl;
 }
 
 void ChainServer::sendback_ack(const proto::Acknowledge& ack) {
-  cout << "sending back acknowledge..." << endl;
   send_msg_tcp(pre_server_addr_, proto::Message::ACKNOWLEDGE, ack);
+  send_msg_seq ++;
+  LOG(INFO) << "Server sent tcp message to "
+            << pre_server_addr_.ip() << ":" << pre_server_addr_.port()
+            << ", send_req_seq = " << send_msg_seq << endl
+            << ack.ShortDebugString() << endl << endl;
 }
 
 void ChainServer::receive_ack(proto::Acknowledge* ack) {
   while (!sent_req_list_.empty() &&
          sent_req_list_.front().bank_update_seq() <= ack->bank_update_seq()) {
     proto::Request req = sent_req_list_.front();
-    auto it = processed_update_map_.find(req.req_id());
-    if (it == processed_update_map_.end()) {  // doesn't exist in processed list
-      auto it_insert =
-          processed_update_map_.insert(std::make_pair(req.req_id(), req));
-      assert(it_insert.second);
-    }
-    sent_req_list_.pop_front();
+    update_processed_update_list(req);
+    pop_sent_req_list(req.req_id());
   }
-  cout << "length of sent_req_list: " << sent_req_list_.size()
-       << ", length of processed_update_map: " << processed_update_map_.size()
-       << endl;
   if (!ishead_) {
     sendback_ack(*ack);
   }
@@ -132,8 +144,7 @@ void ChainServer::handle_query(proto::Request* req) {
 // head server handle update request
 void ChainServer::head_handle_update(proto::Request* req) {
   get_update_req_result(req);
-  cout << "Processed request result: req_id=" << req->reply().req_id()
-       << ", balance=" << req->reply().balance() << endl;
+  write_log_reply(req->reply());
   insert_sent_req_list(*req);
   forward_request(*req);
 }
@@ -141,8 +152,7 @@ void ChainServer::head_handle_update(proto::Request* req) {
 // single server handle update request
 void ChainServer::single_handle_update(proto::Request* req) {
   get_update_req_result(req);
-  cout << "Processed request result: req_id=" << req->reply().req_id()
-       << ", balance=" << req->reply().balance() << endl;
+  write_log_reply(req->reply());
   if (req->check_result() == proto::Request::NEWREQ) {
     update_processed_update_list(*req);
   }
@@ -152,14 +162,11 @@ void ChainServer::single_handle_update(proto::Request* req) {
 // tail server handle update request
 void ChainServer::tail_handle_update(proto::Request* req) {
   get_update_req_result(req);
-  cout << "Processed request result: req_id=" << req->reply().req_id()
-       << ", balance=" << req->reply().balance() << endl;
+  write_log_reply(req->reply());
   if (req->check_result() == proto::Request::NEWREQ) {
     update_processed_update_list(*req);
   }
   if (req->type() != proto::Request::TRANSFERTO) {
-    cout << "client ip: " << req->client_addr().ip()
-         << ", port: " << req->client_addr().port() << endl;
     reply(*req);
   }
   proto::Acknowledge ack;
@@ -170,8 +177,7 @@ void ChainServer::tail_handle_update(proto::Request* req) {
 // interval server handle update request
 void ChainServer::internal_handle_update(proto::Request* req) {
   get_update_req_result(req);
-  cout << "Processed request result: req_id=" << req->reply().req_id()
-       << ", balance=" << req->reply().balance() << endl;
+  write_log_reply(req->reply());
   insert_sent_req_list(*req);
   forward_request(*req);
 }
@@ -221,7 +227,7 @@ proto::Request_CheckRequest ChainServer::check_update_request(
   }
 
   // doesn't exist in processed_update_map_
-  for (auto it = sent_req_list_.begin(); it != sent_req_list_.end(); ++it)
+  for (auto it = sent_req_list_.begin(); it != sent_req_list_.end(); ++it) {
     if (req.req_id() == it->req_id()) {
       // request exists in sent_req_list_
       if (req_consistent(req, *it))
@@ -229,6 +235,7 @@ proto::Request_CheckRequest ChainServer::check_update_request(
       else
         return proto::Request::INCONSISTENT;
     }
+  }
 
   // request doesn't exist in sent_req_list_ either
   return proto::Request::NEWREQ;
@@ -301,13 +308,44 @@ ChainServer::UpdateBalanceOutcome ChainServer::update_balance(
 
 // used in tail_handle_update(req) and single_handle_update(req)
 void ChainServer::update_processed_update_list(const proto::Request& req) {
-  auto it = processed_update_map_.insert(std::make_pair(req.req_id(), req));
-  assert(it.second);
+  auto it = processed_update_map_.find(req.req_id());
+  if (it == processed_update_map_.end()) {  // doesn't exist in processed list
+    auto it_insert =
+    processed_update_map_.insert(std::make_pair(req.req_id(), req));
+    assert(it_insert.second);
+    LOG(INFO) << "Server added request req_id=" << req.req_id() << " to processed update request list" << endl << endl;
+  }
 }
 
 // used in head_handle_update(req) and interval_handle_update(req)
 void ChainServer::insert_sent_req_list(const proto::Request& req) {
   sent_req_list_.push_back(req);  // insert at the end of deque
+  LOG(INFO) << "Server added request req_id=" << req.req_id() << " to sent update request list" << endl << endl;
+}
+
+// used in receive_ack(ack)
+void ChainServer::pop_sent_req_list(string req_id) {
+  sent_req_list_.pop_front();
+  LOG(INFO) << "Server removed request req_id=" << req_id << " from sent update request list" << endl << endl;
+}
+
+// write processed request result to log
+void ChainServer::write_log_reply(const proto::Reply& reply) {
+  string outcome;
+  switch (reply.outcome()) {
+    case proto::Reply::PROCESSED:
+      outcome = "PROCESSED";
+      break;
+    case proto::Reply::INCONSISTENT_WITH_HISTORY:
+      outcome = "INCONSISTENT_WITH_HISTORY";
+      break;
+    case proto::Reply::INSUFFICIENT_FUNDS:
+      outcome = "INSUFFICIENT_FUNDS";
+      break;
+  }
+  LOG(INFO) << "Server processed request req_id=" << reply.req_id()
+	     << ", outcome=" << outcome <<", balance=" << reply.balance()
+	     << endl << endl;
 }
 
 // read configuration file for a server

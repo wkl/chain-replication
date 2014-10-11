@@ -1,5 +1,9 @@
 #include "message.h"
 
+// global
+int send_msg_seq = 0;
+int rec_msg_seq = 0;
+
 void UDPLoop::run_forever() {
   boost::asio::io_service io_service;
   udp::socket sock(io_service, udp::endpoint(udp::v4(), port_));
@@ -10,10 +14,18 @@ void UDPLoop::run_forever() {
         sock.receive_from(asio::buffer(data, UDP_MAX_LENGTH), sender_endpoint);
     proto::Message msg;
     assert(decode_msg(msg, data, length));
+    
+    /*
     std::cout << "UDP message Received from: " << sender_endpoint << std::endl
               << msg.ShortDebugString() << std::endl;
+    */
 
-    handle_msg(msg);
+    // decode from_endpoint
+    proto::Address from_addr;
+    from_addr.set_ip(sender_endpoint.address().to_string());
+    from_addr.set_port(sender_endpoint.port());
+
+    handle_msg(msg, from_addr);
   }
 }
 
@@ -53,10 +65,17 @@ void TCPLoop::session(tcp::socket sock) {
     // decode msg
     proto::Message msg;
     decode_body(msg, body, body_size);
+    /*
     std::cout << "TCP message received from: " << sock.remote_endpoint()
               << std::endl << msg.ShortDebugString() << std::endl;
+    */
 
-    handle_msg(msg);
+    // decode from_endpoint
+    proto::Address from_addr;
+    from_addr.set_ip(sock.remote_endpoint().address().to_string());
+    from_addr.set_port(sock.remote_endpoint().port());
+
+    handle_msg(msg, from_addr);
   } catch (std::exception &e) {
     std::cerr << "Exception in thread: " << e.what() << std::endl;
   }
@@ -169,9 +188,11 @@ bool send_msg_tcp(proto::Address target,
   size_t buf_size = msg.ByteSize() + 4;
   char buf[buf_size];
   encode_msg(msg, buf, buf_size);
+  /*
   std::cout << "Sending TCP message..."
             << " from: " << s.local_endpoint() << " to: " << s.remote_endpoint()
             << std::endl << sub_msg.ShortDebugString() << std::endl;
+  */
   asio::write(s, asio::buffer(buf, buf_size));
 
   return true;

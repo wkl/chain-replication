@@ -51,7 +51,7 @@ class UDPLoop {
   void operator()() { run_forever(); }
   void run_forever();
 
-  virtual void handle_msg(proto::Message &msg) = 0;
+  virtual void handle_msg(proto::Message &msg, proto::Address &from_addr) = 0;
 
  private:
   int port_;
@@ -65,7 +65,7 @@ class TCPLoop {
   void run_forever();
   void session(tcp::socket sock);
 
-  virtual void handle_msg(proto::Message &msg) = 0;
+  virtual void handle_msg(proto::Message &msg, proto::Address &from_addr) = 0;
 
  private:
   int port;

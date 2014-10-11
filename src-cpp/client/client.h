@@ -34,8 +34,8 @@ class Client {
   void operator()() { run(); };
   void run();
 
-  void receive_reply(const proto::Reply& reply);
   void handle_msg(proto::Message& msg);
+  void receive_reply(const proto::Reply& reply);
 
   // getter/setter
   void set_ip(string ip) { ip_ = ip; };

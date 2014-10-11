@@ -3,10 +3,6 @@
 #include <boost/program_options.hpp>
 namespace po = boost::program_options;
 
-// global
-int send_msg_seq = 0;
-int rec_msg_seq = 0;
-
 void Client::handle_msg(proto::Message& msg) {
   switch (msg.type()) {
     case proto::Message::REPLY:
@@ -20,8 +16,8 @@ void Client::handle_msg(proto::Message& msg) {
   }
 }
 
+// client deal with reply
 void Client::receive_reply(const proto::Reply& reply) {
-  // cout << "Reply " << reply.req_id() << " received." << endl;
 }
 
 void Client::run() {
@@ -53,14 +49,14 @@ void Client::run() {
       if (req.type() == proto::Request::QUERY) {
         send_msg_seq++;
         send_msg_udp(*local_addr, tail_addr, proto::Message::REQUEST, req);
-        LOG(INFO) << "Client " << clientid_ << " sends udp message to "
+        LOG(INFO) << "Client " << clientid_ << " sent udp message to "
                   << tail_addr.ip() << ":" << tail_addr.port()
                   << ", send_req_seq = " << send_msg_seq << endl
                   << req.ShortDebugString() << endl << endl;
       } else {
         send_msg_seq++;
         send_msg_udp(*local_addr, head_addr, proto::Message::REQUEST, req);
-        LOG(INFO) << "Client " << clientid_ << " sends udp message to "
+        LOG(INFO) << "Client " << clientid_ << " sent udp message to "
                   << head_addr.ip() << ":" << head_addr.port()
                   << ", send_req_seq = " << send_msg_seq << endl
                   << req.ShortDebugString() << endl << endl;
@@ -71,7 +67,7 @@ void Client::run() {
       proto::Message msg;
       assert(decode_msg(msg, data, length));
       rec_msg_seq++;
-      LOG(INFO) << "Client " << clientid_ << " receives udp message from "
+      LOG(INFO) << "Client " << clientid_ << " received udp message from "
                 << sender_endpoint << ", rec_req_seq = " << rec_msg_seq << endl
                 << msg.ShortDebugString() << endl << endl;
       handle_msg(msg);
