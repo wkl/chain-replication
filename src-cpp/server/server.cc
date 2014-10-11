@@ -62,9 +62,7 @@ void ChainServer::receive_ack(proto::Acknowledge* ack) {
          sent_req_list_.front().bank_update_seq() <= ack->bank_update_seq()) {
     proto::Request req = sent_req_list_.front();
     auto it = (processed_update_map_).find(req.req_id());
-    if (it ==
-        (processed_update_map_)
-            .end()) {  // request doesn't exists in processed_update_map_
+    if (it == processed_update_map_.end()) {  // request doesn't exists in processed_update_map_
       auto it_insert =
           processed_update_map_.insert(std::make_pair(req.req_id(), req));
       assert(it_insert.second);
@@ -216,14 +214,11 @@ proto::Request_CheckRequest ChainServer::check_update_request(
     return proto::Request::NEWREQ;
   } else {
     auto it = (processed_update_map_).find(req.req_id());
-    if (it ==
-        (processed_update_map_)
-            .end()) {  // request doesn't exist in processed_update_map_
+    if (it == processed_update_map_.end()) {  // request doesn't exist in processed_update_map_
       if ((sent_req_list_).size() > 0) {
         for (auto it_queue = (sent_req_list_).begin();
              it_queue != (sent_req_list_).end(); ++it_queue) {
-          if (req.req_id() ==
-              (*it_queue).req_id()) {  // request exists in sent_req_list_
+          if (req.req_id() == (*it_queue).req_id()) {  // request exists in sent_req_list_
             bool if_req_consistent = check_req_consistency(req, *it_queue);
             if (if_req_consistent) {  // consistent request
               return proto::Request::PROCESSED;
@@ -251,12 +246,9 @@ Account& ChainServer::get_or_create_account(const proto::Request& req,
                                             bool* ifexisted_account) {
   string account_id = req.account_id();
   auto it = bank_.account_map().find(account_id);
-  if (it ==
-      bank_.account_map()
-          .end()) {  // account doesn't exist, create a new account
+  if (it == bank_.account_map().end()) {  // account doesn't exist, create a new account
     Account account(account_id, 0);
-    auto it_insert =
-        bank_.account_map().insert(std::make_pair(account_id, account));
+    auto it_insert = bank_.account_map().insert(std::make_pair(account_id, account));
     assert(it_insert.second);
     *ifexisted_account = false;
     return (it_insert.first)->second;
@@ -285,9 +277,7 @@ bool ChainServer::check_req_consistency(const proto::Request& req1,
 float ChainServer::get_balance(string account_id) {
   float balance = 0;
   auto it = bank_.account_map().find(account_id);
-  if (it ==
-      bank_.account_map()
-          .end()) {  // account doesn't exist, create a new account
+  if (it == bank_.account_map().end()) {  // account doesn't exist, create a new account
     Account account(account_id, 0);
     auto it2 = bank_.account_map().insert(std::make_pair(account_id, account));
     assert(it2.second);
