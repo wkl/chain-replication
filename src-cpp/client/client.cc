@@ -209,11 +209,14 @@ int main(int argc, char* argv[]) {
       read_config_client(vm["config-file"].as<std::string>(), client_vector);
       LOG(INFO) << "Finish processing configuration file. Start the clients."
                 << endl << endl;
-
+	
+      vector<std::thread> thread_vector;
       for (auto it = client_vector.begin(); it != client_vector.end(); ++it) {
-        Client c = *it;
-        std::thread t(c);
-        t.join();
+	Client c = *it;
+	thread_vector.push_back(std::thread(c));
+      }
+      for (auto it = thread_vector.begin(); it != thread_vector.end(); ++it) {
+	(*it).join();
       }
     } else {
       LOG(ERROR) << "Please input the config-file path" << endl << endl;
@@ -223,11 +226,6 @@ int main(int argc, char* argv[]) {
     LOG(ERROR) << "error: " << e.what() << endl << endl;
     return 1;
   }
-  /*
-  Client c("127.0.0.1", 60001);	// client address
-  std::thread t(c);
-  t.join();
-  */
 
   return 0;
 }
