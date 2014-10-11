@@ -106,7 +106,7 @@ int read_config_client(string dir, vector<Client>& client_vector) {
         proto::Request req;
 	req.set_bank_id(request_json[JSON_BANKID].asString());
 	req.set_account_id(request_json[JSON_ACCOUNTID].asString());
-	string req_id = req.bank_id() + "." + req.account_id() + "." + std::to_string(request_json[JSON_SEQ].asInt());
+	string req_id = req.bank_id() + "." + client.clientid() + "." + std::to_string(request_json[JSON_SEQ].asInt());
 	req.set_req_id(req_id);
 	req.set_amount(request_json[JSON_AMOUNT].asDouble());
         string type = request_json[JSON_TYPE].asString();
