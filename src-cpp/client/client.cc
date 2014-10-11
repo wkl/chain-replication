@@ -124,13 +124,10 @@ int read_config_client(string dir, vector<Client>& client_vector) {
     	  exit (1);
 	}
 	request_vector.push_back(req);
-	if (type == JSON_QUERY) {
-	  LOG(INFO) << "Request for client " << client.clientid() << ":" << endl << "reqid=" << req.req_id() << ", bankid=" << req.bank_id() 
- 		    << ", accountid=" << req.account_id() << ", req_type=" << type << endl << endl;
-	} else {
-	  LOG(INFO) << "Request for client " << client.clientid() << ":" << endl << "reqid=" << req.req_id() << ", bankid=" << req.bank_id() 
-		    << ", accountid=" << req.account_id() << ", req_type=" << type << ", amount=" << req.amount() << endl << endl;
-	}
+	LOG_IF(INFO, type == JSON_QUERY) << "Request for client " << client.clientid() << ":" << endl << "reqid=" << req.req_id() << ", bankid=" << req.bank_id() 
+ 		    			 << ", accountid=" << req.account_id() << ", req_type=" << type << endl << endl;
+	LOG_IF(INFO, type != JSON_QUERY) << "Request for client " << client.clientid() << ":" << endl << "reqid=" << req.req_id() << ", bankid=" << req.bank_id() 
+		    			 << ", accountid=" << req.account_id() << ", req_type=" << type << ", amount=" << req.amount() << endl << endl;
       }
       client.set_request_vector(request_vector); 
 

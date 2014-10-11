@@ -413,7 +413,6 @@ int main(int argc, char* argv[]) {
 
     FLAGS_logtostderr = true;
     if (vm.count("log-dir") && vm.count("config-file") && vm.count("bank-id") && vm.count("chain-no")) {
-      //FLAGS_log_dir = vm["log-dir"].as<string>();
       string log_dir = vm["log-dir"].as<std::string>() + "/server";
       mkdir(log_dir.c_str(), 0777);
       FLAGS_log_dir = log_dir;	
