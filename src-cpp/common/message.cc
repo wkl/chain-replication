@@ -35,7 +35,8 @@ void TCPLoop::run_forever() {
   for (;;) {
     tcp::socket sock(io_service);
     a.accept(sock);
-    std::thread(&TCPLoop::session, this, std::move(sock)).detach();
+    // std::thread(&TCPLoop::session, this, std::move(sock)).detach();
+    session(std::move(sock));
   }
 }
 
