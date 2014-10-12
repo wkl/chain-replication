@@ -14,6 +14,12 @@ JSON_BANKID = 'bankid'
 JSON_ACCOUNTID = 'accountid'
 JSON_AMOUNT = 'amount'
 JSON_BANKS = 'banks'
+JSON_REQNUM = 'reqnum'
+JSON_ACCOUNTNUM = 'accountnum'
+JSON_MAXAMOUNT = 'maxamount'
+JSON_PROBQUERY = 'probquery'
+JSON_PROBWITHDRAW = 'probwithdraw'
+JSON_PROBDEPOSIT = 'probdeposit'
 
 class RequestType(Enum):
     QUERY = 0
@@ -305,13 +311,13 @@ class ConfigClient:
                 print('req_id=%s, bank_id=%s, account_id=%s, amount=%d' % (req_id, bank_id, account_id, amount))
         else:
             json_reqseed = json_client[JSON_REQSEED]
-            req_num = json_reqseed['reqnum']
+            req_num = json_reqseed[JSON_REQNUM]
             for i in range(0, req_num):
-              account_num = json_reqseed['accountnum']
-              max_amount = json_reqseed['maxamount']
-              prob_query = json_reqseed['probquery']
-              prob_withdraw = json_reqseed['probwithdraw']
-              prob_deposit = json_reqseed['probdeposit']
+              account_num = json_reqseed[JSON_ACCOUNTNUM]
+              max_amount = json_reqseed[JSON_MAXAMOUNT]
+              prob_query = json_reqseed[JSON_PROBQUERY]
+              prob_withdraw = json_reqseed[JSON_PROBWITHDRAW]
+              prob_deposit = json_reqseed[JSON_PROBDEPOSIT]
               weight = {RequestType.QUERY:prob_query, RequestType.DEPOSIT:prob_deposit, RequestType.WITHDRAW:prob_withdraw}
               items = list(weight.keys())
               req_type = random_req_type(weight, items)     
