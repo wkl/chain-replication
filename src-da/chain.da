@@ -10,6 +10,7 @@ JSON_CLIENTID = 'clientid'
 JSON_REQSEED = 'reqseed'
 JSON_REQUESTS = 'requests'
 JSON_TYPE = 'type'
+JSON_SEQ = 'seq'
 JSON_BANKID = 'bankid'
 JSON_ACCOUNTID = 'accountid'
 JSON_AMOUNT = 'amount'
@@ -198,21 +199,20 @@ class Server(process):
         self.reply_to_client(req)
 
 class Client(process):
-    def setup(client_id, bank_heads, bank_tails):
+    def setup(client_config, bank_heads, bank_tails):
         self.recv = {}
 
     def main():
         count = 0
-        while True:
-            bank_id = 'boa'
-            count += 1
-            req_id = "%s.%d.%d" % (bank_id, client_id, count)
-            req = Request(req_id, RequestType.DEPOSIT, bank_id, 'wkl', 10)
-            target = bank_tails[bank_id] if req.type == RequestType.QUERY else bank_heads[bank_id]
+        for req in client_config.request_list:
+            if req.type == RequestType.QUERY:
+                target = bank_tails[req.bank_id]
+            else:
+                target = bank_heads[req.bank_id]
             output("Sending Request to %s: %s" % (req, target))
-            self.recv[req_id] = 0
+            self.recv[req.req_id] = 0
             send(('REQUEST', req), to=target)
-            await(self.recv[req_id])
+            await(self.recv[req.req_id])
             # await(some(received(('REPLY', reply), has=(reply.req_id == req_id))))
 
     def receive(msg=('REPLY', reply), from_=s):
@@ -268,8 +268,8 @@ class Request:
                 self.req_id, self.type.name, self.account_id, self.amount)
 
     def consistent_with(self, req):
-        return (self.type, self.account_id, self.bank_id, self.amount) == \
-                (req.type, req.account_id, req.bank_id, req.amount)
+        return (self.type, self.bank_id, self.amount) == \
+                (req.type, req.bank_id, req.amount)
 
 class Reply:
     def __init__(self, req, outcome=Outcome.NEWREQ):
@@ -291,22 +291,22 @@ class Acknowledge:
     def __str__(self):
         return "ReqID: %s, BankUpdateSeq: %d" % (self.req_id, self.bank_update_seq)
 
-class ConfigClient:
+class ClientConfig:
     def __init__(self, json_client, json_banks):
         self.clientid = json_client[JSON_CLIENTID]
         self.request_list = []
         if not JSON_REQSEED in json_client:
             json_requests = json_client[JSON_REQUESTS]
-            for i in range(0, len(json_requests)):
+            for json_request in json_requests:
                 type_dict = {'QUERY':RequestType.QUERY, 'DEPOSIT':RequestType.DEPOSIT, 'WITHDRAW':RequestType.WITHDRAW}
-                bank_id = json_requests[i][JSON_BANKID]
-                req_id = "%s.%s.%d" % (bank_id, self.clientid, i+1)
-                account_id = json_requests[i][JSON_ACCOUNTID]
-                req_type = type_dict[json_requests[i][JSON_TYPE]]
+                bank_id = json_request[JSON_BANKID]
+                req_id = "%s.%s.%d" % (bank_id, self.clientid, json_request[JSON_SEQ])
+                account_id = json_request[JSON_ACCOUNTID]
+                req_type = type_dict[json_request[JSON_TYPE]]
                 if req_type == RequestType.QUERY:
                     amount = 0
                 else:
-                    amount = json_requests[i][JSON_AMOUNT]
+                    amount = json_request[JSON_AMOUNT]
                 request = Request(req_id, req_type, bank_id, account_id, amount)
                 self.request_list.append(request)
                 print('req_id=%s, bank_id=%s, account_id=%s, amount=%d' % (req_id, bank_id, account_id, amount))
@@ -326,21 +326,11 @@ class ConfigClient:
               bank_id = json_banks[bank_seq][JSON_BANKID] 
               account_seq = random.randint(1, account_num)
               account_id = "account%d" % (account_seq)
-              amount = random.randint(1, max_amount)
+              amount = random.randint(1, int(max_amount))
               req_id = "%s.%s.%d" % (bank_id, self.clientid, i+1)
               request = Request(req_id, req_type, bank_id, account_id, amount)
               self.request_list.append(request)
               print('req_id=%s, bank_id=%s, account_id=%s, amount=%d' % (req_id, bank_id, account_id, amount))
-
-def read_config():
-    fjson = open('../config/test2.json', 'r+')
-    sjson = json.load(fjson)
-    fjson.close()
-    config_client_list = []
-    for i in range(0, len(sjson[JSON_CLIENTS])):
-        config_client = ConfigClient(sjson[JSON_CLIENTS][i], sjson[JSON_BANKS])
-        config_client_list.append(config_client)
-    return config_client_list
 
 def random_req_type(weight, items):
     mysum = 0
@@ -352,36 +342,49 @@ def random_req_type(weight, items):
     i = bisect.bisect(breakpoints, score)
     return items[i]
 
+def read_config(path):
+    # XXX python exception is not supported in Distalgo?
+    f = open(path, 'r')
+    sjson = json.load(f)
+
+    config_clients = []
+    for config in sjson[JSON_CLIENTS]:
+        config_clients.append(ClientConfig(config, sjson[JSON_BANKS]))
+    return sjson, config_clients
 
 def main():
     config(channel="fifo")
-   
-    read_config()
 
-    banks = ['boa', 'citi']
+    if len(sys.argv) != 2:
+        print("Usage: python3 -m da %s config_file_path" % sys.argv[0])
+        sys.exit(1)
+    json_doc, client_configs = read_config(sys.argv[1])
+
     bank_heads = {}
     bank_tails = {}
 
-    for bank in banks[:1]:
-        num_server = 4
+    for bank in json_doc[JSON_BANKS]:
+        num_server = bank['chainlen']
+        bank_id = bank['bankid']
         servers = list(new(Server, num = num_server))
         for (i, server) in enumerate(servers):
             if i == 0:
-                bank_heads[bank] = server
+                bank_heads[bank_id] = server
                 prev = None
             else:
                 prev = servers[i-1]
 
             if i == num_server - 1:
-                bank_tails[bank] = server
+                bank_tails[bank_id] = server
                 succ = None
             else:
                 succ = servers[i+1]
 
-            setup(server, (i, bank, prev, succ))
+            setup(server, (i, bank_id, prev, succ))
             start(server)
 
-    client = new(Client, num = 1)
-    setup(client, (1, bank_heads, bank_tails))
-    start(client)
+    for client_config in client_configs:
+        client = new(Client, num = 1)
+        setup(client, (client_config, bank_heads, bank_tails))
+        start(client)
 
