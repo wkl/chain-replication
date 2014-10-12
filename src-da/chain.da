@@ -144,9 +144,9 @@ class Server(process):
         self.forward_request(req)
 
     def update_processed_list(req):
-        processed_req = self.processed.get(req.req_id)
-        if not processed_req:
-            self.processed[req.req_id] = req
+        account_processed = self.processed.setdefault(req.account_id, {})
+        if not account_processed.get(req.req_id):
+            account_processed[req.req_id] = req
         # output("processed list: %s" % self.processed)
 
     # calculate reply
@@ -174,7 +174,8 @@ class Server(process):
         if is_new:
             return CheckExistingResult.NEWREQ
 
-        processed_req = self.processed.get(req.req_id)
+        account_processed = self.processed.setdefault(req.account_id, {})
+        processed_req = account_processed.get(req.req_id)
         if processed_req:
             if req.consistent_with(processed_req):
                 return CheckExistingResult.PROCESSED
@@ -362,7 +363,7 @@ def main():
     bank_tails = {}
 
     for bank in banks[:1]:
-        num_server = 2
+        num_server = 4
         servers = list(new(Server, num = num_server))
         for (i, server) in enumerate(servers):
             if i == 0:
