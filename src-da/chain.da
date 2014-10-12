@@ -1,0 +1,390 @@
+import sys
+from enum import Enum
+from collections import deque
+import json
+import random 
+import bisect
+
+JSON_CLIENTS = 'clients'
+JSON_CLIENTID = 'clientid'
+JSON_REQSEED = 'reqseed'
+JSON_REQUESTS = 'requests'
+JSON_TYPE = 'type'
+JSON_SEQ = 'seq'
+JSON_BANKID = 'bankid'
+JSON_ACCOUNTID = 'accountid'
+JSON_AMOUNT = 'amount'
+JSON_BANKS = 'banks'
+JSON_REQNUM = 'reqnum'
+JSON_ACCOUNTNUM = 'accountnum'
+JSON_MAXAMOUNT = 'maxamount'
+JSON_PROBQUERY = 'probquery'
+JSON_PROBWITHDRAW = 'probwithdraw'
+JSON_PROBDEPOSIT = 'probdeposit'
+
+class RequestType(Enum):
+    QUERY = 0
+    DEPOSIT = 1
+    WITHDRAW = 2
+    TRANSFER = 3
+    TRANSFER_TO = 4
+
+class CheckExistingResult(Enum):
+    NEWREQ = 0
+    PROCESSED = 1
+    INCONSISTENT = 2
+
+class UpdateBalanceOutcome(Enum):
+    INSUFFICIENTFUNDS = 0
+    SUCCESS = 1
+
+class Outcome(Enum):
+    NEWREQ = 0
+    PROCESSED = 1
+    INCONSISTENT_WITH_HISTORY = 2
+    INSUFFICIENT_FUNDS = 3
+
+class Server(process):
+    def setup(server_id, bank_id, prev, succ):
+        self.is_head = True if not prev else False
+        self.is_tail = True if not succ else False
+
+        self.bank = Bank(bank_id)
+        self.bank_update_seq = 0
+        self.processed = {}
+        self.sent = deque()
+
+    def main():
+        await(0)
+
+    def receive(msg=('ACK', ack), from_=s):
+        output("Received ACK %s" % ack)
+        while len(self.sent) and self.sent[0].bank_update_seq <= ack.bank_update_seq:
+            req = self.sent.popleft()
+            self.update_processed_list(req)
+
+        # output("sent list: %s" % self.sent)
+        if not self.is_head:
+            self.send_ack(req)
+
+    def receive(msg=('REQUEST', req), from_=c):
+        output("Received REQUEST %s" % req)
+        if req.type == RequestType.QUERY:
+            assert(self.is_tail)
+            req.client = c
+            return self.handle_query(req)
+
+        assert(req.type != RequestType.QUERY)
+
+        # head server
+        if self.is_head and not self.is_tail:
+            self.bank_update_seq += 1
+            req.bank_update_seq = self.bank_update_seq
+            req.client = c
+            return self.head_handle_request(req)
+
+        # only one server
+        if (self.is_head and self.is_tail):
+            self.bank_update_seq += 1
+            req.bank_update_seq = self.bank_update_seq
+            req.client = c
+            return self.single_handle_request(req)
+
+        # ignore duplicate update request which is possible when handling failure
+        if self.bank_update_seq >= req.bank_update_seq:
+            return
+
+        # assertion based on our FIFO request forwarding assumption
+        assert(self.bank_update_seq == req.bank_update_seq - 1)
+        self.bank_update_seq = req.bank_update_seq
+
+        # tail server
+        if not self.is_head and self.is_tail:
+            return self.tail_handle_request(req)
+
+        # internal server
+        assert(not self.is_head and not self.is_tail)
+        return self.internal_handle_request(req)
+
+    def forward_request(req):
+        output("Forwarding req to %s: %s" % (succ, req))
+        # output("sent list: %s" % self.sent)
+        send(("REQUEST", req), to=succ)
+
+    def reply_to_client(req):
+        output("Replying to %s: %s" % (req.client, req.reply))
+        send(("REPLY", req.reply), to=req.client)
+
+    def send_ack(req):
+        ack = Acknowledge(req)
+        output("Sending ACK to %s: %s" % (req.client, ack))
+        send(("ACK", ack), to=prev)
+
+    def head_handle_request(req):
+        self.update_request_reply(req)
+        self.sent.append(req)
+        self.forward_request(req)
+
+    def single_handle_request(req):
+        self.update_request_reply(req)
+        if req.check_result == CheckExistingResult.NEWREQ:
+            self.update_processed_list(req)
+        self.reply_to_client(req)
+
+    def tail_handle_request(req):
+        self.update_request_reply(req)
+        if req.check_result == CheckExistingResult.NEWREQ:
+            self.update_processed_list(req)
+        if req.type != RequestType.TRANSFER_TO:
+            self.reply_to_client(req)
+        send_ack(req)
+
+    def internal_handle_request(req):
+        self.update_request_reply(req)
+        self.sent.append(req)
+        self.forward_request(req)
+
+    def update_processed_list(req):
+        account_processed = self.processed.setdefault(req.account_id, {})
+        if not account_processed.get(req.req_id):
+            account_processed[req.req_id] = req
+        # output("processed list: %s" % self.processed)
+
+    # calculate reply
+    def update_request_reply(req):
+        req.check_result = self.check_existing_request(req)
+        reply = Reply(req)
+        if req.check_result == CheckExistingResult.INCONSISTENT:
+            reply.outcome = Outcome.INCONSISTENT_WITH_HISTORY
+        elif req.check_result == CheckExistingResult.PROCESSED:
+            reply.outcome = Outcome.PROCESSED
+        elif req.check_result == CheckExistingResult.NEWREQ:
+            update_result = self.bank.update_balance(req)
+            if update_result == UpdateBalanceOutcome.INSUFFICIENTFUNDS:
+                reply.outcome = Outcome.INSUFFICIENT_FUNDS
+            else:
+                reply.outcome = Outcome.PROCESSED
+        else:
+            assert(0)
+
+        reply.balance = self.bank.get_balance(req.account_id)
+        req.reply = reply
+
+    def check_existing_request(req):
+        account, is_new = self.bank.get_or_create_account(req.account_id)
+        if is_new:
+            return CheckExistingResult.NEWREQ
+
+        account_processed = self.processed.setdefault(req.account_id, {})
+        processed_req = account_processed.get(req.req_id)
+        if processed_req:
+            if req.consistent_with(processed_req):
+                return CheckExistingResult.PROCESSED
+            else:
+                return CheckExistingResult.INCONSISTENT
+
+        for sent_req in self.sent:
+            if req.req_id == sent_req.req_id:
+                if req.consistent_with(sent_req):
+                    return CheckExistingResult.PROCESSED
+                else:
+                    return CheckExistingResult.INCONSISTENT
+
+        return CheckExistingResult.NEWREQ
+
+    def handle_query(req):
+        reply = Reply(req, outcome=Outcome.PROCESSED)
+        reply.balance = self.bank.get_balance(req.account_id)
+        req.reply = reply
+        self.reply_to_client(req)
+
+class Client(process):
+    def setup(client_config, bank_heads, bank_tails):
+        self.recv = {}
+
+    def main():
+        count = 0
+        for req in client_config.request_list:
+            if req.type == RequestType.QUERY:
+                target = bank_tails[req.bank_id]
+            else:
+                target = bank_heads[req.bank_id]
+            output("Sending Request to %s: %s" % (target, req))
+            self.recv[req.req_id] = 0
+            send(('REQUEST', req), to=target)
+            await(self.recv[req.req_id])
+            # await(some(received(('REPLY', reply), has=(reply.req_id == req_id))))
+
+    def receive(msg=('REPLY', reply), from_=s):
+        output("Received REPLY %s" % reply)
+        self.recv[reply.req_id] = 1
+
+class Bank:
+    def __init__(self, bank_id):
+        self.bank_id = bank_id
+        self.accounts = {}
+
+    def get_balance(self, account_id):
+        account, is_new = self.get_or_create_account(account_id)
+        return account.balance
+
+    def get_or_create_account(self, account_id):
+        account = self.accounts.get(account_id, None)
+        is_new = False
+        if not account:
+            account = self.accounts[account_id] = Account(account_id, 0)
+            is_new = True
+        return account, is_new
+
+    def update_balance(self, req):
+        account, is_new = self.get_or_create_account(req.account_id)
+        if req.type in (RequestType.WITHDRAW, RequestType.TRANSFER):
+            if account.balance < req.amount:
+                return UpdateBalanceOutcome.INSUFFICIENTFUNDS
+            else:
+                account.balance = account.balance - req.amount
+                return UpdateBalanceOutcome.SUCCESS
+        elif req.type == RequestType.DEPOSIT:
+            account.balance = account.balance + req.amount
+            return UpdateBalanceOutcome.SUCCESS
+
+class Account:
+    def __init__(self, account_id, balance):
+        self.account_id = account_id
+        self.balance = balance
+
+class Request:
+    def __init__(self, req_id, type, bank_id, account_id, amount):
+        self.req_id = req_id
+        self.type = type
+        self.bank_id = bank_id
+        self.account_id = account_id
+        self.amount = amount
+        self.reply = None
+        self.bank_update_seq = -1
+
+    def __str__(self):
+        return "ReqID: %s, Type: %s, Account ID: %s, Amount: %d" % (
+                self.req_id, self.type.name, self.account_id, self.amount)
+
+    def consistent_with(self, req):
+        return (self.type, self.bank_id, self.amount) == \
+                (req.type, req.bank_id, req.amount)
+
+class Reply:
+    def __init__(self, req, outcome=Outcome.NEWREQ):
+        self.req_id = req.req_id
+        self.type = req.type
+        self.account_id = req.account_id
+        self.balance = 0
+        self.outcome = outcome
+
+    def __str__(self):
+        return "ReqID: %s, Outcome: %s, Account ID: %s, Balance: %d" % (
+                self.req_id, self.outcome.name, self.account_id, self.balance)
+
+class Acknowledge:
+    def __init__(self, req):
+        self.bank_update_seq = req.bank_update_seq
+        self.req_id = req.req_id
+
+    def __str__(self):
+        return "ReqID: %s, BankUpdateSeq: %d" % (self.req_id, self.bank_update_seq)
+
+class ClientConfig:
+    def __init__(self, json_client, json_banks):
+        self.clientid = json_client[JSON_CLIENTID]
+        self.request_list = []
+        if not JSON_REQSEED in json_client:
+            json_requests = json_client[JSON_REQUESTS]
+            for json_request in json_requests:
+                type_dict = {'QUERY':RequestType.QUERY, 'DEPOSIT':RequestType.DEPOSIT, 'WITHDRAW':RequestType.WITHDRAW}
+                bank_id = json_request[JSON_BANKID]
+                req_id = "%s.%s.%d" % (bank_id, self.clientid, json_request[JSON_SEQ])
+                account_id = json_request[JSON_ACCOUNTID]
+                req_type = type_dict[json_request[JSON_TYPE]]
+                if req_type == RequestType.QUERY:
+                    amount = 0
+                else:
+                    amount = json_request[JSON_AMOUNT]
+                request = Request(req_id, req_type, bank_id, account_id, amount)
+                self.request_list.append(request)
+                print('req_id=%s, bank_id=%s, account_id=%s, amount=%d' % (req_id, bank_id, account_id, amount))
+        else:
+            json_reqseed = json_client[JSON_REQSEED]
+            req_num = json_reqseed[JSON_REQNUM]
+            for i in range(0, req_num):
+              account_num = json_reqseed[JSON_ACCOUNTNUM]
+              max_amount = json_reqseed[JSON_MAXAMOUNT]
+              prob_query = json_reqseed[JSON_PROBQUERY]
+              prob_withdraw = json_reqseed[JSON_PROBWITHDRAW]
+              prob_deposit = json_reqseed[JSON_PROBDEPOSIT]
+              weight = {RequestType.QUERY:prob_query, RequestType.DEPOSIT:prob_deposit, RequestType.WITHDRAW:prob_withdraw}
+              items = list(weight.keys())
+              req_type = random_req_type(weight, items)     
+              bank_seq = random.randint(0, len(json_banks)-1)
+              bank_id = json_banks[bank_seq][JSON_BANKID] 
+              account_seq = random.randint(1, account_num)
+              account_id = "account%d" % (account_seq)
+              amount = random.randint(1, int(max_amount))
+              req_id = "%s.%s.%d" % (bank_id, self.clientid, i+1)
+              request = Request(req_id, req_type, bank_id, account_id, amount)
+              self.request_list.append(request)
+              print('req_id=%s, bank_id=%s, account_id=%s, amount=%d' % (req_id, bank_id, account_id, amount))
+
+def random_req_type(weight, items):
+    mysum = 0
+    breakpoints = []    
+    for i in items:
+        mysum += weight[i]
+        breakpoints.append(mysum)
+    score = random.random() * breakpoints[-1]
+    i = bisect.bisect(breakpoints, score)
+    return items[i]
+
+def read_config(path):
+    # XXX python exception is not supported in Distalgo?
+    f = open(path, 'r')
+    sjson = json.load(f)
+
+    config_clients = []
+    for config in sjson[JSON_CLIENTS]:
+        config_clients.append(ClientConfig(config, sjson[JSON_BANKS]))
+    return sjson, config_clients
+
+def main():
+    config(channel="fifo")
+
+    if len(sys.argv) != 2:
+        print("Usage: python3 -m da %s config_file_path" % sys.argv[0])
+        sys.exit(1)
+    json_doc, client_configs = read_config(sys.argv[1])
+
+    bank_heads = {}
+    bank_tails = {}
+
+    for bank in json_doc[JSON_BANKS]:
+        num_server = bank['chainlen']
+        bank_id = bank['bankid']
+        servers = list(new(Server, num = num_server))
+        for (i, server) in enumerate(servers):
+            if i == 0:
+                bank_heads[bank_id] = server
+                prev = None
+            else:
+                prev = servers[i-1]
+
+            if i == num_server - 1:
+                bank_tails[bank_id] = server
+                succ = None
+            else:
+                succ = servers[i+1]
+
+            setup(server, (i, bank_id, prev, succ))
+            start(server)
+
+    for client_config in client_configs:
+        client = new(Client, num = 1)
+        setup(client, (client_config, bank_heads, bank_tails))
+        start(client)
+
