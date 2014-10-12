@@ -248,9 +248,7 @@ int main(int argc, char* argv[]) {
 
     FLAGS_logtostderr = true;
     if (vm.count("log-dir")) {
-      string log_dir = vm["log-dir"].as<std::string>() + "/client";
-      mkdir(log_dir.c_str(), 0777);
-      FLAGS_log_dir = log_dir;
+      FLAGS_log_dir = vm["log-dir"].as<string>();
       FLAGS_logtostderr = false;
     }
     FLAGS_logbuflevel = -1;
