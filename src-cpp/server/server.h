@@ -80,8 +80,7 @@ class ChainServer {
   bool ishead_;
   bool istail_;
   // bool extending_chain_;
-  unordered_map<string, proto::Request>
-      processed_update_map_;  // <req_id, request>
+  unordered_map<string, proto::Request> processed_update_map_;  // <"reqid_accountid", request>
   deque<proto::Request> sent_req_list_;
   int bank_update_seq_;
   proto::Address local_addr_;

@@ -117,6 +117,7 @@ void ChainServer::receive_request(proto::Request* req) {
     return;
   }
   // assertion based on our FIFO request forwarding assumption
+
   assert(bank_update_seq_ == req->bank_update_seq() - 1);
   bank_update_seq_ = req->bank_update_seq();
   // tail server
@@ -217,7 +218,7 @@ proto::Request_CheckRequest ChainServer::check_update_request(
   get_or_create_account(req, new_account);
   if (new_account) return proto::Request::NEWREQ;
 
-  auto it = processed_update_map_.find(req.req_id());
+  auto it = processed_update_map_.find(req.req_id() + "_" + req.account_id());
   if (it != processed_update_map_.end()) {
     // request exists in processed_update_map_
     if (req_consistent(req, it->second))
@@ -263,9 +264,8 @@ Account& ChainServer::get_or_create_account(const proto::Request& req,
 // check if the contents of 2 requests with same req_id are consistent
 bool ChainServer::req_consistent(const proto::Request& req1,
                                  const proto::Request& req2) {
-  // hasn't compared client addr
   return ((req1.type() == req2.type()) &&
-          (req1.account_id() == req2.account_id()) &&
+          //(req1.account_id() == req2.account_id()) &&
           (req1.bank_id() == req2.bank_id()) &&
           (req1.amount() == req2.amount()) &&
           (req1.dest_bank_id() == req2.dest_bank_id()) &&
@@ -308,10 +308,10 @@ ChainServer::UpdateBalanceOutcome ChainServer::update_balance(
 
 // used in tail_handle_update(req) and single_handle_update(req)
 void ChainServer::update_processed_update_list(const proto::Request& req) {
-  auto it = processed_update_map_.find(req.req_id());
+  auto it = processed_update_map_.find(req.req_id() + "_" + req.account_id());
   if (it == processed_update_map_.end()) {  // doesn't exist in processed list
     auto it_insert =
-    processed_update_map_.insert(std::make_pair(req.req_id(), req));
+    processed_update_map_.insert(std::make_pair(req.req_id() + "_" + req.account_id(), req));
     assert(it_insert.second);
     LOG(INFO) << "Server added request req_id=" << req.req_id() << " to processed update request list" << endl << endl;
   }
