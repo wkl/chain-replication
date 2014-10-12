@@ -1,11 +1,13 @@
 import sys
 from enum import Enum
+from collections import deque
 
 class RequestType(Enum):
     QUERY = 0
     DEPOSIT = 1
     WITHDRAW = 2
     TRANSFER = 3
+    TRANSFER_TO = 4
 
 class CheckExistingResult(Enum):
     NEWREQ = 0
@@ -22,24 +24,32 @@ class Outcome(Enum):
     INSUFFICIENT_FUNDS = 2
 
 class Server(process):
-    def setup(server_id, bank_id, pre, succ):
-        self.is_head = True if not pre else False
+    def setup(server_id, bank_id, prev, succ):
+        self.is_head = True if not prev else False
         self.is_tail = True if not succ else False
 
         self.bank = Bank(bank_id)
         self.bank_update_seq = 0
         self.processed = {}
-        self.sent = {}
+        self.sent = deque()
 
     def main():
         await(0)
+
+    def receive(msg=('ACKNOWLEDGE', ack), from_=s):
+        while len(self.sent) and self.sent[0].bank_update_seq <= ack.bank_update_seq:
+            req = self.sent.popleft()
+            self.update_processed_list(req)
+
+        if not self.is_head:
+            self.send_ack(req)
 
     def receive(msg=('REQUEST', req), from_=c):
         output("Received Request %s" % req)
         if req.type == RequestType.QUERY:
             assert(self.is_tail)
-            self.handle_query(req, c)
-            return
+            req.client = c
+            return self.handle_query(req)
 
         assert(req.type != RequestType.QUERY)
 
@@ -57,13 +67,34 @@ class Server(process):
             req.client = c
             return self.single_handle_request(req)
 
+        # ignore duplicate update request which is possible when handling failure
+        if self.bank_update_seq >= req.bank_update_seq:
+            return
+
+        # assertion based on our FIFO request forwarding assumption
+        assert(self.bank_update_seq == req.bank_update_seq - 1)
+        self.bank_update_seq = req.bank_update_seq
+
+        # tail server
+        if not self.is_head and self.is_tail:
+            return self.tail_handle_request(req)
+
+        # internal server
+        assert(not self.is_head and not self.is_tail)
+        return self.internal_handle_request(req)
+
     def forward_request(req):
-        output("Forwarding req to %d: %s" % (succ, req))
+        output("Forwarding req to %s: %s" % (succ, req))
         send(("REQUEST", req), to=succ)
 
-    def reply(req):
-        output("Replying req to %d: %s" % (req.client, req))
-        send(("REQUEST", req), to=req.client)
+    def reply_to_client(req):
+        output("Replying to %s: %s" % (req.client, req.reply))
+        send(("REQUEST", req.reply), to=req.client)
+
+    def send_ack(req):
+        ack = Acknowledge(req)
+        output("Sending ack to %s: %s" % (req.client, ack))
+        send(("ACKNOWLEDGE", ack), to=prev)
 
     def head_handle_request(req):
         self.update_request_reply(req)
@@ -74,12 +105,27 @@ class Server(process):
         self.update_request_reply(req)
         if req.check_result == CheckExistingResult.NEWREQ:
             self.update_processed_list(req)
-        self.reply(req)
+        self.reply_to_client(req)
+
+    def tail_handle_request(req):
+        self.update_request_reply(req)
+        if req.check_result == CheckExistingResult.NEWREQ:
+            self.update_processed_list(req)
+        if req.type != RequestType.TRANSFER_TO:
+            self.reply_to_client(req)
+        send_ack(req)
+
+    def internal_handle_request(req):
+        self.update_request_reply(req)
+        self.sent.append(req)
+        self.forward_request(req)
 
     def update_processed_list(req):
-        req = self.processed.get(req.req_id)
-        if not req:
+        processed_req = self.processed.get(req.req_id)
+        if not processed_req:
             self.processed[req.req_id] = req
+        output("sent list: %s" % self.sent)
+        output("processed list: %s" % self.processed)
 
     # calculate reply
     def update_request_reply(req):
@@ -122,12 +168,11 @@ class Server(process):
 
         return CheckExistingResult.NEWREQ
 
-    def handle_query(req, c):
+    def handle_query(req):
         reply = Reply(req)
-        reply.type = req.type
-        reply.account_id = req.account_id
         reply.balance = self.bank.get_balance(req.account_id)
-        send(('REPLY', reply), to=c)
+        req.reply = reply
+        self.reply_to_client(req)
 
 class Bank:
     def __init__(self, bank_id):
@@ -147,7 +192,7 @@ class Bank:
         return account, is_new
 
     def update_balance(self, req):
-        account = get_or_create_account(req.account_id)
+        account, is_new = self.get_or_create_account(req.account_id)
         if req.type in (RequestType.WITHDRAW, RequestType.TRANSFER):
             if account.balance < req.amount:
                 return UpdateBalanceOutcome.INSUFFICIENTFUNDS
@@ -170,26 +215,29 @@ class Client(process):
     def main():
         count = 1
         while True:
-            bank = 'boa'
-            req_id = "%s.%d.%d" % (bank, client_id, count)
+            bank_id = 'boa'
+            req_id = "%s.%d.%d" % (bank_id, client_id, count)
             count += 1
 
-            req = Request(req_id, RequestType.QUERY, 'wkl', 0)
-            send(('REQUEST', req), to=bank_tails[bank])
+            req = Request(req_id, RequestType.DEPOSIT, bank_id, 'wkl', 10)
+            target = bank_tails[bank_id] if req.type == RequestType.QUERY else bank_heads[bank_id]
+            output("Sending Request to %s: %s" % (req, target))
+            send(('REQUEST', req), to=target)
             # await(some(received(('REPLY', reply), has=(reply.req_id == req_id))))
             await(0)
-            break
 
-    def receive(msg=('REPLY', reply), from_=c):
+    def receive(msg=('REPLY', reply), from_=s):
         output("Received Reply %s" % reply)
 
 class Request:
-    def __init__(self, req_id, type, account_id, amount):
+    def __init__(self, req_id, type, bank_id, account_id, amount):
         self.req_id = req_id
         self.type = type
+        self.bank_id = bank_id
         self.account_id = account_id
         self.amount = amount
         self.reply = None
+        self.bank_update_seq = -1
 
     def __str__(self):
         return "ReqID: %s, Type: %s, Account ID: %s, Amount: %d" % (
@@ -209,6 +257,14 @@ class Reply:
     def __str__(self):
         return "ReqID: %s, Balance: %d" % (self.req_id, self.balance)
 
+class Acknowledge:
+    def __init__(self, req):
+        self.bank_update_seq = req.bank_update_seq
+        self.req_id = req.req_id
+
+    def __str__(self):
+        return "ReqID: %s, BankUpdateSeq: %d" % (self.req_id, self.bank_update_seq)
+
 def main():
     config(channel="fifo")
 
@@ -222,9 +278,9 @@ def main():
         for (i, server) in enumerate(servers):
             if i == 0:
                 bank_heads[bank] = server
-                pre = None
+                prev = None
             else:
-                pre = servers[i-1]
+                prev = servers[i-1]
 
             if i == num_server - 1:
                 bank_tails[bank] = server
@@ -232,7 +288,7 @@ def main():
             else:
                 succ = servers[i+1]
 
-            setup(server, (i, bank, pre, succ))
+            setup(server, (i, bank, prev, succ))
             start(server)
 
     client = new(Client, num = 1)
