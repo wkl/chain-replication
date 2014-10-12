@@ -57,8 +57,8 @@ class Server(process):
     def main():
         await(0)
 
-    def receive(msg=('ACKNOWLEDGE', ack), from_=s):
-        output("Received Acknowledge %s" % ack)
+    def receive(msg=('ACK', ack), from_=s):
+        output("Received ACK %s" % ack)
         while len(self.sent) and self.sent[0].bank_update_seq <= ack.bank_update_seq:
             req = self.sent.popleft()
             self.update_processed_list(req)
@@ -68,7 +68,7 @@ class Server(process):
             self.send_ack(req)
 
     def receive(msg=('REQUEST', req), from_=c):
-        output("Received Request %s" % req)
+        output("Received REQUEST %s" % req)
         if req.type == RequestType.QUERY:
             assert(self.is_tail)
             req.client = c
@@ -117,8 +117,8 @@ class Server(process):
 
     def send_ack(req):
         ack = Acknowledge(req)
-        output("Sending ack to %s: %s" % (req.client, ack))
-        send(("ACKNOWLEDGE", ack), to=prev)
+        output("Sending ACK to %s: %s" % (req.client, ack))
+        send(("ACK", ack), to=prev)
 
     def head_handle_request(req):
         self.update_request_reply(req)
@@ -209,14 +209,14 @@ class Client(process):
                 target = bank_tails[req.bank_id]
             else:
                 target = bank_heads[req.bank_id]
-            output("Sending Request to %s: %s" % (req, target))
+            output("Sending Request to %s: %s" % (target, req))
             self.recv[req.req_id] = 0
             send(('REQUEST', req), to=target)
             await(self.recv[req.req_id])
             # await(some(received(('REPLY', reply), has=(reply.req_id == req_id))))
 
     def receive(msg=('REPLY', reply), from_=s):
-        output("Received Reply %s" % reply)
+        output("Received REPLY %s" % reply)
         self.recv[reply.req_id] = 1
 
 class Bank:
