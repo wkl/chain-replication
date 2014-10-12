@@ -19,9 +19,10 @@ class UpdateBalanceOutcome(Enum):
     SUCCESS = 1
 
 class Outcome(Enum):
-    PROCESSED = 0
-    INCONSISTENT_WITH_HISTORY = 1
-    INSUFFICIENT_FUNDS = 2
+    NEWREQ = 0
+    PROCESSED = 1
+    INCONSISTENT_WITH_HISTORY = 2
+    INSUFFICIENT_FUNDS = 3
 
 class Server(process):
     def setup(server_id, bank_id, prev, succ):
@@ -37,10 +38,12 @@ class Server(process):
         await(0)
 
     def receive(msg=('ACKNOWLEDGE', ack), from_=s):
+        output("Received Acknowledge %s" % ack)
         while len(self.sent) and self.sent[0].bank_update_seq <= ack.bank_update_seq:
             req = self.sent.popleft()
             self.update_processed_list(req)
 
+        # output("sent list: %s" % self.sent)
         if not self.is_head:
             self.send_ack(req)
 
@@ -85,11 +88,12 @@ class Server(process):
 
     def forward_request(req):
         output("Forwarding req to %s: %s" % (succ, req))
+        # output("sent list: %s" % self.sent)
         send(("REQUEST", req), to=succ)
 
     def reply_to_client(req):
         output("Replying to %s: %s" % (req.client, req.reply))
-        send(("REQUEST", req.reply), to=req.client)
+        send(("REPLY", req.reply), to=req.client)
 
     def send_ack(req):
         ack = Acknowledge(req)
@@ -124,8 +128,7 @@ class Server(process):
         processed_req = self.processed.get(req.req_id)
         if not processed_req:
             self.processed[req.req_id] = req
-        output("sent list: %s" % self.sent)
-        output("processed list: %s" % self.processed)
+        # output("processed list: %s" % self.processed)
 
     # calculate reply
     def update_request_reply(req):
@@ -169,10 +172,32 @@ class Server(process):
         return CheckExistingResult.NEWREQ
 
     def handle_query(req):
-        reply = Reply(req)
+        reply = Reply(req, outcome=Outcome.PROCESSED)
         reply.balance = self.bank.get_balance(req.account_id)
         req.reply = reply
         self.reply_to_client(req)
+
+class Client(process):
+    def setup(client_id, bank_heads, bank_tails):
+        self.recv = {}
+
+    def main():
+        count = 0
+        while True:
+            bank_id = 'boa'
+            count += 1
+            req_id = "%s.%d.%d" % (bank_id, client_id, count)
+            req = Request(req_id, RequestType.DEPOSIT, bank_id, 'wkl', 10)
+            target = bank_tails[bank_id] if req.type == RequestType.QUERY else bank_heads[bank_id]
+            output("Sending Request to %s: %s" % (req, target))
+            self.recv[req_id] = 0
+            send(('REQUEST', req), to=target)
+            await(self.recv[req_id])
+            # await(some(received(('REPLY', reply), has=(reply.req_id == req_id))))
+
+    def receive(msg=('REPLY', reply), from_=s):
+        output("Received Reply %s" % reply)
+        self.recv[reply.req_id] = 1
 
 class Bank:
     def __init__(self, bank_id):
@@ -208,27 +233,6 @@ class Account:
         self.account_id = account_id
         self.balance = balance
 
-class Client(process):
-    def setup(client_id, bank_heads, bank_tails):
-        pass
-
-    def main():
-        count = 1
-        while True:
-            bank_id = 'boa'
-            req_id = "%s.%d.%d" % (bank_id, client_id, count)
-            count += 1
-
-            req = Request(req_id, RequestType.DEPOSIT, bank_id, 'wkl', 10)
-            target = bank_tails[bank_id] if req.type == RequestType.QUERY else bank_heads[bank_id]
-            output("Sending Request to %s: %s" % (req, target))
-            send(('REQUEST', req), to=target)
-            # await(some(received(('REPLY', reply), has=(reply.req_id == req_id))))
-            await(0)
-
-    def receive(msg=('REPLY', reply), from_=s):
-        output("Received Reply %s" % reply)
-
 class Request:
     def __init__(self, req_id, type, bank_id, account_id, amount):
         self.req_id = req_id
@@ -248,14 +252,16 @@ class Request:
                 (req.type, req.account_id, req.bank_id, req.amount)
 
 class Reply:
-    def __init__(self, req):
+    def __init__(self, req, outcome=Outcome.NEWREQ):
         self.req_id = req.req_id
         self.type = req.type
         self.account_id = req.account_id
         self.balance = 0
+        self.outcome = outcome
 
     def __str__(self):
-        return "ReqID: %s, Balance: %d" % (self.req_id, self.balance)
+        return "ReqID: %s, Outcome: %s, Account ID: %s, Balance: %d" % (
+                self.req_id, self.outcome.name, self.account_id, self.balance)
 
 class Acknowledge:
     def __init__(self, req):
