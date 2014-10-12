@@ -195,7 +195,8 @@ bool send_msg_tcp(proto::Address target,
             << std::endl << sub_msg.ShortDebugString() << std::endl;
   */
   asio::write(s, asio::buffer(buf, buf_size));
-
+  s.shutdown(boost::asio::ip::tcp::socket::shutdown_both);
+  s.close();
   return true;
 }
 
