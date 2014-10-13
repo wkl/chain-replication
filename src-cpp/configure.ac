@@ -40,7 +40,8 @@ BOOST_ASIO
 
 # Global flags
 my_CXXFLAGS="-g"
-my_CPPFLAGS="-Wall -Werror -Wno-error=unused-command-line-argument"
+# my_CPPFLAGS="-Wall -Werror"
+my_CPPFLAGS="-Wall"
 AC_SUBST([my_CXXFLAGS])
 AC_SUBST([my_CPPFLAGS])
 
