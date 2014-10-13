@@ -71,17 +71,17 @@ server/server -c ../config/test2.json -b bank3 -n 3 -l ../logs
 client/client -c ../config/test2.json -l ../logs
 
 3 clients send 3 requests with same content but different req_id to 3 bank chains simultaneously
-req_id = bank1.client1.1
+req_id = bank1.client1.1  /  bank1.client2.1  /  bank1.client3.1
 account_id = account1
 type = DEPOSIT
 amount = 100
 
-req_id = bank2.client1.1
+req_id = bank2.client1.1  /  bank2.client2.1  /  bank2.client3.1
 account_id = account1
 type = DEPOSIT
 amount = 100
 
-req_id = bank3.client1.1
+req_id = bank3.client1.1  /  bank3.client2.1  /  bank3.client3.1
 account_id = account1
 type = DEPOSIT
 amount = 100
