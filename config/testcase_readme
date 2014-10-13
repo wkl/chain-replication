@@ -118,6 +118,7 @@ server/server -c ../config/test4.json -b bank3 -n 3 -l ../logs
 client/client -c ../config/test4.json -l ../logs
 
 the clients send requests which are generated randomly
+for each client:
 the total number of request is 1000
 choose the bank from 3 banks randomly
 choose the type of request randomly according to the proportion
