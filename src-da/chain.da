@@ -30,17 +30,8 @@ class RequestType(Enum):
     TRANSFER = 3
     TRANSFER_TO = 4
 
-class CheckExistingResult(Enum):
-    NEWREQ = 0
-    PROCESSED = 1
-    INCONSISTENT = 2
-
-class UpdateBalanceOutcome(Enum):
-    INSUFFICIENTFUNDS = 0
-    SUCCESS = 1
-
 class Outcome(Enum):
-    NEWREQ = 0
+    NEW_REQ = 0
     PROCESSED = 1
     INCONSISTENT_WITH_HISTORY = 2
     INSUFFICIENT_FUNDS = 3
@@ -139,13 +130,13 @@ class Server(process):
 
     def single_handle_request(req):
         self.update_request_reply(req)
-        if req.check_result == CheckExistingResult.NEWREQ:
+        if req.is_new:
             self.update_processed_list(req)
         self.reply_to_client(req)
 
     def tail_handle_request(req):
         self.update_request_reply(req)
-        if req.check_result == CheckExistingResult.NEWREQ:
+        if req.is_new:
             self.update_processed_list(req)
         if req.type != RequestType.TRANSFER_TO:
             self.reply_to_client(req)
@@ -164,30 +155,23 @@ class Server(process):
 
     # calculate reply
     def update_request_reply(req):
-        reply = Reply(req)
-        req.check_result = self.check_existing_request(req, reply)
-        if req.check_result == CheckExistingResult.INCONSISTENT:
+        req.is_new = False
+        reply = self.build_reply_from_history(req)
+        if reply.outcome == Outcome.NEW_REQ:
+            req.is_new = True
+            reply.outcome, reply.balance = self.bank.update_balance(req)
+        elif reply.outcome == Outcome.INCONSISTENT_WITH_HISTORY:
             reply.balance = self.bank.get_balance(req.account_id)
-            reply.outcome = Outcome.INCONSISTENT_WITH_HISTORY
-        #elif req.check_result == CheckExistingResult.PROCESSED:
-            #reply.outcome = Outcome.PROCESSED
-        elif req.check_result == CheckExistingResult.NEWREQ:
-            update_result = self.bank.update_balance(req)
-            if update_result == UpdateBalanceOutcome.INSUFFICIENTFUNDS:
-                reply.outcome = Outcome.INSUFFICIENT_FUNDS
-            else:
-                reply.outcome = Outcome.PROCESSED
-            reply.balance = self.bank.get_balance(req.account_id)
-        #else:
-            #assert(0)
 
-        # reply.balance = self.bank.get_balance(req.account_id)
+        assert(reply.outcome != Outcome.NEW_REQ)
         req.reply = reply
 
-    def check_existing_request(req, reply):
+    def build_reply_from_history(req):
+        reply = Reply(req, outcome=Outcome.NEW_REQ)
+
         account, is_new = self.bank.get_or_create_account(req.account_id)
         if is_new:
-            return CheckExistingResult.NEWREQ
+            return reply
 
         account_processed = self.processed.setdefault(req.account_id, {})
         processed_req = account_processed.get(req.req_id)
@@ -195,20 +179,23 @@ class Server(process):
             if req.consistent_with(processed_req):
                 reply.outcome = processed_req.reply.outcome
                 reply.balance = processed_req.reply.balance
-                return CheckExistingResult.PROCESSED
             else:
-                return CheckExistingResult.INCONSISTENT
+                reply.outcome = Outcome.INCONSISTENT_WITH_HISTORY
+
+            return reply
 
         for sent_req in self.sent:
             if req.req_id == sent_req.req_id:
                 if req.consistent_with(sent_req):
                     reply.outcome = sent_req.reply.outcome
                     reply.balance = sent_req.reply.balance
-                    return CheckExistingResult.PROCESSED
                 else:
-                    return CheckExistingResult.INCONSISTENT
+                    reply.outcome = Outcome.INCONSISTENT_WITH_HISTORY
 
-        return CheckExistingResult.NEWREQ
+                return reply
+
+        assert(reply.outcome == Outcome.NEW_REQ)
+        return reply
 
     def handle_query(req):
         reply = Reply(req, outcome=Outcome.PROCESSED)
@@ -264,20 +251,27 @@ class Bank:
 
     def update_balance(self, req):
         account, is_new = self.get_or_create_account(req.account_id)
+
         if req.type in (RequestType.WITHDRAW, RequestType.TRANSFER):
             if account.balance < req.amount:
-                return UpdateBalanceOutcome.INSUFFICIENTFUNDS
-            else:
-                account.balance = account.balance - req.amount
-                return UpdateBalanceOutcome.SUCCESS
+                return Outcome.INSUFFICIENT_FUNDS, account.balance
+            account.decrease(req.amount)
         elif req.type == RequestType.DEPOSIT:
-            account.balance = account.balance + req.amount
-            return UpdateBalanceOutcome.SUCCESS
+            account.increase(req.amount)
+
+        return Outcome.PROCESSED, account.balance
 
 class Account:
-    def __init__(self, account_id, balance):
+    def __init__(self, account_id, balance=0):
         self.account_id = account_id
         self.balance = balance
+
+    def decrease(self, amount):
+        assert(self.balance >= amount)
+        self.balance -= amount
+
+    def increase(self, amount):
+        self.balance += amount
 
 class Request:
     def __init__(self, req_id, type, bank_id, account_id, amount):
@@ -298,7 +292,7 @@ class Request:
                 (req.type, req.bank_id, req.amount)
 
 class Reply:
-    def __init__(self, req, outcome=Outcome.NEWREQ):
+    def __init__(self, req, outcome=Outcome.NEW_REQ):
         self.req_id = req.req_id
         self.type = req.type
         self.account_id = req.account_id
