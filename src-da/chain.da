@@ -60,9 +60,13 @@ class Server(process):
     def main():
         await(0)
 
+    # output log with bank id
+    def server_output(log):
+        output("[%s-%d] %s\n" % (self.bank.bank_id, server_id, log))
+
     def receive(msg=('ACK', ack), from_=s):
         self.recv_msg_seq += 1
-        output("[%d]Received ACK %s\n" % (self.recv_msg_seq, ack))
+        self.server_output("(%d) Received ACK %s" % (self.recv_msg_seq, ack))
         while len(self.sent) and self.sent[0].bank_update_seq <= ack.bank_update_seq:
             req = self.sent.popleft()
             self.update_processed_list(req)
@@ -73,7 +77,7 @@ class Server(process):
 
     def receive(msg=('REQUEST', req), from_=c):
         self.recv_msg_seq += 1
-        output("[%d]Received REQUEST %s\n" % (self.recv_msg_seq, req))
+        self.server_output("(%d) Received REQUEST %s" % (self.recv_msg_seq, req))
         if req.type == RequestType.QUERY:
             assert(self.is_tail)
             req.client = c
@@ -113,19 +117,19 @@ class Server(process):
 
     def forward_request(req):
         self.send_msg_seq += 1
-        output("[%d]Forwarding req to %s: %s\n" % (self.send_msg_seq, succ, req))
+        self.server_output("(%d) Forwarding req to %s: %s\n" % (self.send_msg_seq, succ, req))
         # output("sent list: %s" % self.sent)
         send(("REQUEST", req), to=succ)
 
     def reply_to_client(req):
         self.send_msg_seq += 1
-        output("[%d]Replying to %s: %s\n" % (self.send_msg_seq, req.client, req.reply))
+        self.server_output("(%d) Replying to %s: %s\n" % (self.send_msg_seq, req.client, req.reply))
         send(("REPLY", req.reply), to=req.client)
 
     def send_ack(req):
         self.send_msg_seq += 1
         ack = Acknowledge(req)
-        output("[%d]Sending ACK to %s: %s\n" % (self.send_msg_seq, req.client, ack))
+        self.server_output("(%d) Sending ACK to %s: %s\n" % (self.send_msg_seq, req.client, ack))
         send(("ACK", ack), to=prev)
 
     def head_handle_request(req):
@@ -218,6 +222,10 @@ class Client(process):
         self.send_msg_seq = 0
         self.recv_msg_seq = 0
 
+    # output log with client id
+    def client_output(log):
+        output("[%s] %s\n" % (client_config.client_id, log))
+
     def main():
         count = 0
         for req in client_config.request_list:
@@ -227,14 +235,14 @@ class Client(process):
                 target = bank_heads[req.bank_id]
             self.recv[req.req_id] = 0
             self.send_msg_seq += 1
-            output("[%d]Sending Request to %s: %s\n" % (self.send_msg_seq, target, req))
+            self.client_output("(%d) Sending Request to %s: %s\n" % (self.send_msg_seq, target, req))
             send(('REQUEST', req), to=target)
             await(self.recv[req.req_id])
             # await(some(received(('REPLY', reply), has=(reply.req_id == req_id))))
 
     def receive(msg=('REPLY', reply), from_=s):
         self.recv_msg_seq += 1
-        output("[%d]Received REPLY %s\n" % (self.recv_msg_seq, reply))
+        self.client_output("(%d) Received REPLY %s\n" % (self.recv_msg_seq, reply))
         self.recv[reply.req_id] = 1
 
 class Bank:
@@ -311,14 +319,14 @@ class Acknowledge:
 
 class ClientConfig:
     def __init__(self, json_client, json_banks):
-        self.clientid = json_client[JSON_CLIENTID]
+        self.client_id = json_client[JSON_CLIENTID]
         self.request_list = []
         if not JSON_REQSEED in json_client:
             json_requests = json_client[JSON_REQUESTS]
             for json_request in json_requests:
                 type_dict = {'QUERY':RequestType.QUERY, 'DEPOSIT':RequestType.DEPOSIT, 'WITHDRAW':RequestType.WITHDRAW}
                 bank_id = json_request[JSON_BANKID]
-                req_id = "%s.%s.%d" % (bank_id, self.clientid, json_request[JSON_SEQ])
+                req_id = "%s.%s.%d" % (bank_id, self.client_id, json_request[JSON_SEQ])
                 account_id = json_request[JSON_ACCOUNTID]
                 req_type = type_dict[json_request[JSON_TYPE]]
                 if req_type == RequestType.QUERY:
@@ -349,7 +357,7 @@ class ClientConfig:
                   amount = 0
               else:
                   amount = random.randint(1, int(max_amount))
-              req_id = "%s.%s.%d" % (bank_id, self.clientid, i+1)
+              req_id = "%s.%s.%d" % (bank_id, self.client_id, i+1)
               request = Request(req_id, req_type, bank_id, account_id, amount)
               self.request_list.append(request)
               print('req_id=%s, bank_id=%s, account_id=%s, amount=%d, req_type=%s' % (

@@ -60,6 +60,7 @@ Fedora:
 	$ ./run_case.sh 1
 	$ ./run_case.sh 2
 	$ ./run_case.sh 3
+	$ ./run_case.sh 4
 
 3. Logging
 	
@@ -72,7 +73,7 @@ Fedora:
 
 	$ cd <chain-replication>/src-da
 	$ python3 -m da chain.da ../config/test1.json		# assume distalgo is installed
-or	$ python3 -m da -f chain.da ../config/test1.json	# log to file
+or	$ python3 -m da -f -F info -L info chain.da ../config/test1.json	# also log to file
 
 
 MAIN FILES
@@ -111,3 +112,4 @@ Common / Misc
 
 OTHER COMMENTS
 --------------
+- Pseudo-code may be not updated.
