@@ -62,7 +62,7 @@ class Server(process):
 
     # output log with bank id
     def server_output(log):
-        output("[%s-%d] %s\n" % (self.bank.bank_id, server_id, log))
+        output("[%s-%d] %s\n\n" % (self.bank.bank_id, server_id, log))
 
     def receive(msg=('ACK', ack), from_=s):
         self.recv_msg_seq += 1
@@ -117,19 +117,19 @@ class Server(process):
 
     def forward_request(req):
         self.send_msg_seq += 1
-        self.server_output("(%d) Forwarding req to %s: %s\n" % (self.send_msg_seq, succ, req))
+        self.server_output("(%d) Forwarding req to %s: %s" % (self.send_msg_seq, succ, req))
         # output("sent list: %s" % self.sent)
         send(("REQUEST", req), to=succ)
 
     def reply_to_client(req):
         self.send_msg_seq += 1
-        self.server_output("(%d) Replying to %s: %s\n" % (self.send_msg_seq, req.client, req.reply))
+        self.server_output("(%d) Replying to %s: %s" % (self.send_msg_seq, req.client, req.reply))
         send(("REPLY", req.reply), to=req.client)
 
     def send_ack(req):
         self.send_msg_seq += 1
         ack = Acknowledge(req)
-        self.server_output("(%d) Sending ACK to %s: %s\n" % (self.send_msg_seq, req.client, ack))
+        self.server_output("(%d) Sending ACK to %s: %s" % (self.send_msg_seq, req.client, ack))
         send(("ACK", ack), to=prev)
 
     def head_handle_request(req):
@@ -224,7 +224,7 @@ class Client(process):
 
     # output log with client id
     def client_output(log):
-        output("[%s] %s\n" % (client_config.client_id, log))
+        output("[%s] %s\n\n" % (client_config.client_id, log))
 
     def main():
         count = 0
@@ -235,14 +235,14 @@ class Client(process):
                 target = bank_heads[req.bank_id]
             self.recv[req.req_id] = 0
             self.send_msg_seq += 1
-            self.client_output("(%d) Sending Request to %s: %s\n" % (self.send_msg_seq, target, req))
+            self.client_output("(%d) Sending Request to %s: %s" % (self.send_msg_seq, target, req))
             send(('REQUEST', req), to=target)
             await(self.recv[req.req_id])
             # await(some(received(('REPLY', reply), has=(reply.req_id == req_id))))
 
     def receive(msg=('REPLY', reply), from_=s):
         self.recv_msg_seq += 1
-        self.client_output("(%d) Received REPLY %s\n" % (self.recv_msg_seq, reply))
+        self.client_output("(%d) Received REPLY %s" % (self.recv_msg_seq, reply))
         self.recv[reply.req_id] = 1
 
 class Bank:
