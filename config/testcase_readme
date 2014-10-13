@@ -1,0 +1,125 @@
+test1: 1 client, 1 chain with 3 servers
+server/server -c ../config/test1.json -b bank3 -n 1 -l ../logs
+server/server -c ../config/test1.json -b bank3 -n 2 -l ../logs
+server/server -c ../config/test1.json -b bank3 -n 3 -l ../logs
+client/client -c ../config/test1.json -l ../logs
+
+1. normal deposit
+req_id = bank3.client1.1
+account_id = account1
+type = DEPOSIT
+amount = 100
+outcome = PROCESSED
+balance = 100
+
+2. insufficient fund withdraw
+req_id = bank3.client1.2
+account_id = account1
+type = WITHDRAW
+amount = 1000
+outcome = INSUFFICIENT_FUNDS
+balance = 100
+
+3. normal deposit
+req_id = bank3.client1.3
+account_id = account1
+type = WITHDRAW
+amount = 50
+outcome = PROCESSED
+balance = 50
+
+4. duplicate withdraw with 2
+req_id = bank3.client1.2
+account_id = account1
+type = WITHDRAW
+amount = 1000
+outcome = INSUFFICIENT_FUNDS
+balance = 100
+
+5. inconsistent withdraw with 2
+req_id = bank3.client1.2
+account_id = account1
+type = WITHDRAW
+amount = 20
+outcome = INCONSISTENT_WITH_HISTORY
+balance = 50
+
+6. normal deposit for client2 with same req_id as 1
+req_id = bank3.client1.1
+account_id = account2
+type = DEPOSIT
+amount = 1000
+outcome = PROCESSED
+balance = 1000
+
+7. query
+req_id = bank3.client1.4
+account_id = account1
+type = QUERY
+outcome = PROCESSED
+balance = 50
+
+
+
+test2: 3 clients, 3 chains with 1 server, 2 server, 3 server respectively
+server/server -c ../config/test2.json -b bank1 -n 1 -l ../logs
+server/server -c ../config/test2.json -b bank2 -n 1 -l ../logs
+server/server -c ../config/test2.json -b bank2 -n 2 -l ../logs
+server/server -c ../config/test2.json -b bank3 -n 1 -l ../logs
+server/server -c ../config/test2.json -b bank3 -n 2 -l ../logs
+server/server -c ../config/test2.json -b bank3 -n 3 -l ../logs
+client/client -c ../config/test2.json -l ../logs
+
+3 clients send 3 same requests to 3 bank chains simultaneously
+req_id = bank1.client1.1
+account_id = account1
+type = DEPOSIT
+amount = 100
+
+req_id = bank2.client1.1
+account_id = account1
+type = DEPOSIT
+amount = 100
+
+req_id = bank3.client1.1
+account_id = account1
+type = DEPOSIT
+amount = 100
+
+the final balance of account1 in each bank should be 300
+
+
+
+test3: 1 client, 3 chains with 1 server, 2 server, 3 server respectively
+server/server -c ../config/test3.json -b bank1 -n 1 -l ../logs
+server/server -c ../config/test3.json -b bank2 -n 1 -l ../logs
+server/server -c ../config/test3.json -b bank2 -n 2 -l ../logs
+server/server -c ../config/test3.json -b bank3 -n 1 -l ../logs
+server/server -c ../config/test3.json -b bank3 -n 2 -l ../logs
+server/server -c ../config/test3.json -b bank3 -n 3 -l ../logs
+client/client -c ../config/test3.json -l ../logs
+
+the client send requests which are generated randomly
+the total number of request is 10
+choose the bank from 3 banks randomly
+choose the type of request randomly according to the proportion
+choose the amount from 1 to 1000 randomly
+fix the account as account1
+
+
+
+test4: 3 clients, 3 chains with 1 server, 2 server, 3 server respectively
+server/server -c ../config/test4.json -b bank1 -n 1 -l ../logs
+server/server -c ../config/test4.json -b bank2 -n 1 -l ../logs
+server/server -c ../config/test4.json -b bank2 -n 2 -l ../logs
+server/server -c ../config/test4.json -b bank3 -n 1 -l ../logs
+server/server -c ../config/test4.json -b bank3 -n 2 -l ../logs
+server/server -c ../config/test4.json -b bank3 -n 3 -l ../logs
+client/client -c ../config/test4.json -l ../logs
+
+the clients send requests which are generated randomly
+the total number of request is 1000
+choose the bank from 3 banks randomly
+choose the type of request randomly according to the proportion
+choose the amount from 1 to 1000 randomly
+choose the account from 3 accounts randomly

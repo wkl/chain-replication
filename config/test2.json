@@ -78,45 +78,25 @@
             "ifresend": true,
             "requests": [
                 {
-                    "bankid": "bank3",
+                    "bankid": "bank1",
                     "accountid": "account1",
                     "seq": 1,
                     "type": "DEPOSIT",
                     "amount": 100
                 },
                 {
-                    "bankid": "bank3",
+                    "bankid": "bank2",
                     "accountid": "account1",
                     "seq": 2,
-                    "type": "WITHDRAW",
-                    "amount": 1000
+                    "type": "DEPOSIT",
+                    "amount": 100
                 },
                 {
                     "bankid": "bank3",
-                    "accountid": "account1",
-                    "seq": 3,
-                    "type": "WITHDRAW",
-                    "amount": 20
-                },
-		{
-                    "bankid": "bank1",
                     "accountid": "account1",
                     "seq": 3,
                     "type": "DEPOSIT",
-                    "amount": 20
-                },
-		{
-                    "bankid": "bank1",
-                    "accountid": "account1",
-                    "seq": 3,
-                    "type": "WITHDRAW",
-                    "amount": 20
-                },
-                {
-                    "bankid": "bank1",
-                    "accountid": "account1",
-                    "seq": 4,
-                    "type": "QUERY"
+                    "amount": 100
                 }
             ]
         },
@@ -136,38 +116,49 @@
                     "amount": 100
                 },
                 {
-                    "bankid": "bank1",
+                    "bankid": "bank2",
                     "accountid": "account1",
                     "seq": 2,
-                    "type": "WITHDRAW",
-                    "amount": 1000
+                    "type": "DEPOSIT",
+                    "amount": 100
                 },
                 {
-                    "bankid": "bank1",
-                    "accountid": "account1",
-                    "seq": 3,
-                    "type": "WITHDRAW",
-                    "amount": 20
-                },
-		{
                     "bankid": "bank3",
                     "accountid": "account1",
                     "seq": 3,
                     "type": "DEPOSIT",
-                    "amount": 20
-                },
-		{
-                    "bankid": "bank3",
+                    "amount": 100
+                }
+            ]
+        },
+        {
+            "clientid": "client3",
+            "ip": "127.0.0.1",
+            "port": 60003,
+            "waittimeout": 5,
+            "resendnum": 3,
+            "ifresend": true,
+            "requests": [
+                {
+                    "bankid": "bank1",
                     "accountid": "account1",
-                    "seq": 3,
-                    "type": "WITHDRAW",
-                    "amount": 20
+                    "seq": 1,
+                    "type": "DEPOSIT",
+                    "amount": 100
+                },
+                {
+                    "bankid": "bank2",
+                    "accountid": "account1",
+                    "seq": 2,
+                    "type": "DEPOSIT",
+                    "amount": 100
                 },
                 {
                     "bankid": "bank3",
                     "accountid": "account1",
-                    "seq": 4,
-                    "type": "QUERY"
+                    "seq": 3,
+                    "type": "DEPOSIT",
+                    "amount": 100
                 }
             ]
         }

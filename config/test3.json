@@ -77,12 +77,12 @@
             "resendnum": 3,
             "ifresend": true,
             "reqseed": {
-                "reqnum": 20,
-                "accountnum": 3,
+                "reqnum": 10,
+                "accountnum": 1,
                 "maxamount": 1000,
-                "probquery": 30,
-                "probwithdraw": 20,
-                "probdeposit": 50
+                "probquery": 3,
+                "probwithdraw": 2,
+                "probdeposit": 5
             }
         }
     ]

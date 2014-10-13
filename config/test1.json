@@ -91,26 +91,33 @@
                     "type": "WITHDRAW",
                     "amount": 1000
                 },
-                {
-                    "bankid": "bank3",
-                    "accountid": "account1",
-                    "seq": 3,
-                    "type": "WITHDRAW",
-                    "amount": 20
-                },
-		{
-                    "bankid": "bank3",
-                    "accountid": "account1",
-                    "seq": 3,
-                    "type": "WITHDRAW",
-                    "amount": 20
-                },
 		{
                     "bankid": "bank3",
                     "accountid": "account1",
                     "seq": 3,
                     "type": "WITHDRAW",
                     "amount": 50
+                },
+                {
+                    "bankid": "bank3",
+                    "accountid": "account1",
+                    "seq": 2,
+                    "type": "WITHDRAW",
+                    "amount": 1000
+                },
+		{
+                    "bankid": "bank3",
+                    "accountid": "account1",
+                    "seq": 2,
+                    "type": "WITHDRAW",
+                    "amount": 20
+                },
+                {
+                    "bankid": "bank3",
+                    "accountid": "account2",
+                    "seq": 1,
+                    "type": "DEPOSIT",
+                    "amount": 1000
                 },
                 {
                     "bankid": "bank3",

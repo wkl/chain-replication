@@ -78,11 +78,11 @@
             "ifresend": true,
             "reqseed": {
                 "reqnum": 1000,
-                "accountnum": 3,
+                "accountnum": 1,
                 "maxamount": 1000,
-                "probquery": 30,
-                "probwithdraw": 20,
-                "probdeposit": 50
+                "probquery": 3,
+                "probwithdraw": 2,
+                "probdeposit": 5
             }
         },
         {
@@ -92,49 +92,14 @@
             "waittimeout": 5,
             "resendnum": 3,
             "ifresend": true,
-            "requests": [
-                {
-                    "bankid": "bank3",
-                    "accountid": "account1",
-                    "seq": 1,
-                    "type": "DEPOSIT",
-                    "amount": 100
-                },
-                {
-                    "bankid": "bank3",
-                    "accountid": "account1",
-                    "seq": 2,
-                    "type": "WITHDRAW",
-                    "amount": 1000
-                },
-                {
-                    "bankid": "bank3",
-                    "accountid": "account1",
-                    "seq": 3,
-                    "type": "WITHDRAW",
-                    "amount": 20
-                },
-		{
-                    "bankid": "bank1",
-                    "accountid": "account1",
-                    "seq": 3,
-                    "type": "DEPOSIT",
-                    "amount": 20
-                },
-		{
-                    "bankid": "bank1",
-                    "accountid": "account1",
-                    "seq": 3,
-                    "type": "WITHDRAW",
-                    "amount": 20
-                },
-                {
-                    "bankid": "bank1",
-                    "accountid": "account1",
-                    "seq": 4,
-                    "type": "QUERY"
-                }
-            ]
+            "reqseed": {
+                "reqnum": 1000,
+                "accountnum": 1,
+                "maxamount": 1000,
+                "probquery": 3,
+                "probwithdraw": 3,
+                "probdeposit": 4
+            }
         },
         {
             "clientid": "client3",
@@ -143,49 +108,14 @@
             "waittimeout": 5,
             "resendnum": 3,
             "ifresend": true,
-            "requests": [
-                {
-                    "bankid": "bank1",
-                    "accountid": "account1",
-                    "seq": 1,
-                    "type": "DEPOSIT",
-                    "amount": 100
-                },
-                {
-                    "bankid": "bank1",
-                    "accountid": "account1",
-                    "seq": 2,
-                    "type": "WITHDRAW",
-                    "amount": 1000
-                },
-                {
-                    "bankid": "bank1",
-                    "accountid": "account1",
-                    "seq": 3,
-                    "type": "WITHDRAW",
-                    "amount": 20
-                },
-		{
-                    "bankid": "bank3",
-                    "accountid": "account1",
-                    "seq": 3,
-                    "type": "DEPOSIT",
-                    "amount": 20
-                },
-		{
-                    "bankid": "bank3",
-                    "accountid": "account1",
-                    "seq": 3,
-                    "type": "WITHDRAW",
-                    "amount": 20
-                },
-                {
-                    "bankid": "bank3",
-                    "accountid": "account1",
-                    "seq": 4,
-                    "type": "QUERY"
-                }
-            ]
+            "reqseed": {
+                "reqnum": 1000,
+                "accountnum": 1,
+                "maxamount": 1000,
+                "probquery": 6,
+                "probwithdraw": 2,
+                "probdeposit": 2
+            }
         }
     ]
 }
