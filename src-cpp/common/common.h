@@ -27,17 +27,6 @@
 #define JSON_SERVERS "servers"
 #define JSON_CHAINNO "chainno"
 
-class Node {
- public:
-  Node(std::string ip, unsigned short port) : ip_(ip), port_(port) {}
-  const std::string &ip() { return ip_; }
-  unsigned short port() { return port_; }
-
- private:
-  std::string ip_;
-  unsigned short port_;
-};
-
 // global
 extern int send_msg_seq;
 extern int rec_msg_seq;

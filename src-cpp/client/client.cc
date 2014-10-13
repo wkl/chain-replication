@@ -17,8 +17,7 @@ void Client::handle_msg(proto::Message& msg) {
 }
 
 // client deal with reply
-void Client::receive_reply(const proto::Reply& reply) {
-}
+void Client::receive_reply(const proto::Reply& reply) {}
 
 void Client::run() {
   // ugly, may refactor with UDPLoop
@@ -127,7 +126,7 @@ int read_config_client(string dir, vector<Client>& client_vector) {
       }
       // request info
       vector<proto::Request> request_vector;
-      if (!client_json.isMember("reqseed")) {	// read requests from file
+      if (!client_json.isMember("reqseed")) {  // read requests from file
         Json::Value request_json_list = client_json[JSON_REQUESTS];
         for (unsigned int j = 0; j < request_json_list.size(); j++) {
           Json::Value request_json = request_json_list[j];
@@ -150,7 +149,7 @@ int read_config_client(string dir, vector<Client>& client_vector) {
           } else {
             ifs.close();
             LOG(ERROR) << "The type of the request with req_id=" << req.req_id()
-                     << " is illegal" << endl << endl;
+                       << " is illegal" << endl << endl;
             exit(1);
           }
           request_vector.push_back(req);
@@ -165,56 +164,58 @@ int read_config_client(string dir, vector<Client>& client_vector) {
               << ", accountid=" << req.account_id() << ", req_type=" << type
               << ", amount=" << req.amount() << endl << endl;
         }
-      }
-      else {	// generate requests randomly
+      } else {  // generate requests randomly
         // from the bank list, randomly choose a bankid
         Json::Value req_seed = client_json["reqseed"];
         int req_num = req_seed["reqnum"].asInt();
         int account_num = req_seed["accountnum"].asInt();
         int max_amount = req_seed["maxamount"].asInt();
         int prob_query = req_seed["probquery"].asInt();
-	int prob_deposit = req_seed["probdeposit"].asInt();
-	int prob_withdraw = req_seed["probwithdraw"].asInt();
-	std::map<int,proto::Request_RequestType> genreq_map;
-	genreq_map[prob_query] = proto::Request::QUERY;
-	genreq_map[prob_query + prob_deposit] = proto::Request::DEPOSIT;
-	genreq_map[prob_query + prob_deposit + prob_withdraw] = proto::Request::WITHDRAW;
-	srand((unsigned)time(0));
-	for (int i = 0; i < req_num; i++) {
-	  proto::Request req;
-	  // generate random data
-	  int bank_seq = rand() % bank_list_json.size();
+        int prob_deposit = req_seed["probdeposit"].asInt();
+        int prob_withdraw = req_seed["probwithdraw"].asInt();
+        std::map<int, proto::Request_RequestType> genreq_map;
+        genreq_map[prob_query] = proto::Request::QUERY;
+        genreq_map[prob_query + prob_deposit] = proto::Request::DEPOSIT;
+        genreq_map[prob_query + prob_deposit + prob_withdraw] =
+            proto::Request::WITHDRAW;
+        srand((unsigned)time(0));
+        for (int i = 0; i < req_num; i++) {
+          proto::Request req;
+          // generate random data
+          int bank_seq = rand() % bank_list_json.size();
           string bankid = bank_list_json[bank_seq][JSON_BANKID].asString();
-	  int account_seq = rand() % account_num;
-	  string accountid = "account" + std::to_string(account_seq + 1);
+          int account_seq = rand() % account_num;
+          string accountid = "account" + std::to_string(account_seq + 1);
           double amount = (double)(rand() % (max_amount + 1));
-	  int req_tmp = rand() % (prob_query + prob_deposit + prob_withdraw);
-	  auto it = genreq_map.upper_bound(req_tmp);
-	  proto::Request_RequestType type = it->second;
-	  // wrap request object
-	  req.set_bank_id(bankid);
-	  req.set_account_id(accountid);
-	  string req_id = bankid + "." + client.clientid() + "." + std::to_string(i+1);
-	  req.set_req_id(req_id);
-	  req.set_amount(amount);
-	  req.set_type(type);
-	  // write log
-	  std::map<proto::Request_RequestType, string> typestr_map;
-	  typestr_map[proto::Request::QUERY] = "QUERY";
-	  typestr_map[proto::Request::DEPOSIT] = "DEPOSIT";
-	  typestr_map[proto::Request::WITHDRAW] = "WITHDRAW";
+          int req_tmp = rand() % (prob_query + prob_deposit + prob_withdraw);
+          auto it = genreq_map.upper_bound(req_tmp);
+          proto::Request_RequestType type = it->second;
+          // wrap request object
+          req.set_bank_id(bankid);
+          req.set_account_id(accountid);
+          string req_id =
+              bankid + "." + client.clientid() + "." + std::to_string(i + 1);
+          req.set_req_id(req_id);
+          req.set_amount(amount);
+          req.set_type(type);
+          // write log
+          std::map<proto::Request_RequestType, string> typestr_map;
+          typestr_map[proto::Request::QUERY] = "QUERY";
+          typestr_map[proto::Request::DEPOSIT] = "DEPOSIT";
+          typestr_map[proto::Request::WITHDRAW] = "WITHDRAW";
           LOG_IF(INFO, type == proto::Request::QUERY)
               << "Request for client " << client.clientid() << ":" << endl
               << "reqid=" << req.req_id() << ", bankid=" << req.bank_id()
-              << ", accountid=" << req.account_id() << ", req_type=" << typestr_map[type]
-              << endl << endl;
+              << ", accountid=" << req.account_id()
+              << ", req_type=" << typestr_map[type] << endl << endl;
           LOG_IF(INFO, type != proto::Request::QUERY)
               << "Request for client " << client.clientid() << ":" << endl
               << "reqid=" << req.req_id() << ", bankid=" << req.bank_id()
-              << ", accountid=" << req.account_id() << ", req_type=" << typestr_map[type]
+              << ", accountid=" << req.account_id()
+              << ", req_type=" << typestr_map[type]
               << ", amount=" << req.amount() << endl << endl;
-	  request_vector.push_back(req);
-	}
+          request_vector.push_back(req);
+        }
       }
       client.set_request_vector(request_vector);
 
@@ -262,11 +263,11 @@ int main(int argc, char* argv[]) {
                 << endl << endl;
       vector<std::thread> thread_vector;
       for (auto it = client_vector.begin(); it != client_vector.end(); ++it) {
-	Client c = *it;
-	thread_vector.push_back(std::thread(c));
+        Client c = *it;
+        thread_vector.push_back(std::thread(c));
       }
       for (auto it = thread_vector.begin(); it != thread_vector.end(); ++it) {
-	(*it).join();
+        (*it).join();
       }
     } else {
       LOG(ERROR) << "Please input the config-file path" << endl << endl;

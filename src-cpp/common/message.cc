@@ -14,7 +14,7 @@ void UDPLoop::run_forever() {
         sock.receive_from(asio::buffer(data, UDP_MAX_LENGTH), sender_endpoint);
     proto::Message msg;
     assert(decode_msg(msg, data, length));
-    
+
     /*
     std::cout << "UDP message Received from: " << sender_endpoint << std::endl
               << msg.ShortDebugString() << std::endl;

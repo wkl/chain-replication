@@ -29,12 +29,12 @@ class ChainServer {
  public:
   enum class UpdateBalanceOutcome { Success, InsufficientFunds };
 
-  ChainServer(){ bank_update_seq_ = 0; };
+  ChainServer() { bank_update_seq_ = 0; };
   ChainServer(string bank_id) : bank_id_(bank_id) { bank_update_seq_ = 0; }
 
   void receive_request(proto::Request* req);
   void forward_request(const proto::Request& req);
-  void reply(const proto::Request& req);
+  void reply_to_client(const proto::Request& req);
   void receive_ack(proto::Acknowledge* ack);
   void sendback_ack(const proto::Acknowledge& ack);
 
@@ -45,7 +45,8 @@ class ChainServer {
   void internal_handle_update(proto::Request* req);
   float get_balance(string account_id);
   void get_update_req_result(proto::Request* req);
-  proto::Request_CheckRequest check_update_request(const proto::Request& req, proto::Reply* reply);
+  proto::Request_CheckRequest check_update_request(const proto::Request& req,
+                                                   proto::Reply* reply);
   Account& get_or_create_account(const proto::Request& req, bool& new_account);
   bool req_consistent(const proto::Request& req1, const proto::Request& req2);
   ChainServer::UpdateBalanceOutcome update_balance(const proto::Request& req);
@@ -80,7 +81,8 @@ class ChainServer {
   bool ishead_;
   bool istail_;
   // bool extending_chain_;
-  unordered_map<string, proto::Request> processed_update_map_;  // <"reqid_accountid", request>
+  // <"reqid_accountid", request>
+  unordered_map<string, proto::Request> processed_update_map_;
   deque<proto::Request> sent_req_list_;
   unsigned int bank_update_seq_;
   proto::Address local_addr_;
@@ -91,12 +93,12 @@ class ChainServer {
 
 class ChainServerUDPLoop : public UDPLoop {
   using UDPLoop::UDPLoop;  // inherit constructor
-  void handle_msg(proto::Message& msg, proto::Address &from_addr);
+  void handle_msg(proto::Message& msg, proto::Address& from_addr);
 };
 
 class ChainServerTCPLoop : public TCPLoop {
   using TCPLoop::TCPLoop;
-  void handle_msg(proto::Message& msg, proto::Address &from_addr);
+  void handle_msg(proto::Message& msg, proto::Address& from_addr);
 };
 
 // global
