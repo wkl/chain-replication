@@ -82,7 +82,7 @@ class ChainServer {
   // bool extending_chain_;
   unordered_map<string, proto::Request> processed_update_map_;  // <"reqid_accountid", request>
   deque<proto::Request> sent_req_list_;
-  int bank_update_seq_;
+  unsigned int bank_update_seq_;
   proto::Address local_addr_;
   proto::Address pre_server_addr_;
   proto::Address succ_server_addr_;

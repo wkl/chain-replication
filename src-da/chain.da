@@ -53,12 +53,15 @@ class Server(process):
         self.bank_update_seq = 0
         self.processed = {}
         self.sent = deque()
+        self.send_msg_seq = 0
+        self.recv_msg_seq = 0
 
     def main():
         await(0)
 
     def receive(msg=('ACK', ack), from_=s):
-        output("Received ACK %s" % ack)
+        self.recv_msg_seq += 1
+        output("[%d]Received ACK %s" % (self.recv_msg_seq, ack))
         while len(self.sent) and self.sent[0].bank_update_seq <= ack.bank_update_seq:
             req = self.sent.popleft()
             self.update_processed_list(req)
@@ -68,7 +71,8 @@ class Server(process):
             self.send_ack(req)
 
     def receive(msg=('REQUEST', req), from_=c):
-        output("Received REQUEST %s" % req)
+        self.recv_msg_seq += 1
+        output("[%d]Received REQUEST %s" % (self.recv_msg_seq, req))
         if req.type == RequestType.QUERY:
             assert(self.is_tail)
             req.client = c
@@ -107,17 +111,20 @@ class Server(process):
         return self.internal_handle_request(req)
 
     def forward_request(req):
-        output("Forwarding req to %s: %s" % (succ, req))
+        self.send_msg_seq += 1
+        output("[%d]Forwarding req to %s: %s" % (self.send_msg_seq, succ, req))
         # output("sent list: %s" % self.sent)
         send(("REQUEST", req), to=succ)
 
     def reply_to_client(req):
-        output("Replying to %s: %s" % (req.client, req.reply))
+        self.send_msg_seq += 1
+        output("[%d]Replying to %s: %s" % (self.send_msg_seq, req.client, req.reply))
         send(("REPLY", req.reply), to=req.client)
 
     def send_ack(req):
+        self.send_msg_seq += 1
         ack = Acknowledge(req)
-        output("Sending ACK to %s: %s" % (req.client, ack))
+        output("[%d]Sending ACK to %s: %s" % (self.send_msg_seq, req.client, ack))
         send(("ACK", ack), to=prev)
 
     def head_handle_request(req):
@@ -201,6 +208,8 @@ class Server(process):
 class Client(process):
     def setup(client_config, bank_heads, bank_tails):
         self.recv = {}
+        self.send_msg_seq = 0
+        self.recv_msg_seq = 0
 
     def main():
         count = 0
@@ -209,14 +218,16 @@ class Client(process):
                 target = bank_tails[req.bank_id]
             else:
                 target = bank_heads[req.bank_id]
-            output("Sending Request to %s: %s" % (target, req))
             self.recv[req.req_id] = 0
+            self.send_msg_seq += 1
+            output("[%d]Sending Request to %s: %s" % (self.send_msg_seq, target, req))
             send(('REQUEST', req), to=target)
             await(self.recv[req.req_id])
             # await(some(received(('REPLY', reply), has=(reply.req_id == req_id))))
 
     def receive(msg=('REPLY', reply), from_=s):
-        output("Received REPLY %s" % reply)
+        self.recv_msg_seq += 1
+        output("[%d]Received REPLY %s" % (self.recv_msg_seq, reply))
         self.recv[reply.req_id] = 1
 
 class Bank:
@@ -309,7 +320,8 @@ class ClientConfig:
                     amount = json_request[JSON_AMOUNT]
                 request = Request(req_id, req_type, bank_id, account_id, amount)
                 self.request_list.append(request)
-                print('req_id=%s, bank_id=%s, account_id=%s, amount=%d' % (req_id, bank_id, account_id, amount))
+                print('req_id=%s, bank_id=%s, account_id=%s, amount=%d, req_type=%s' % (
+                    req_id, bank_id, account_id, amount, req_type.name))
         else:
             json_reqseed = json_client[JSON_REQSEED]
             req_num = json_reqseed[JSON_REQNUM]
@@ -330,7 +342,8 @@ class ClientConfig:
               req_id = "%s.%s.%d" % (bank_id, self.clientid, i+1)
               request = Request(req_id, req_type, bank_id, account_id, amount)
               self.request_list.append(request)
-              print('req_id=%s, bank_id=%s, account_id=%s, amount=%d' % (req_id, bank_id, account_id, amount))
+              print('req_id=%s, bank_id=%s, account_id=%s, amount=%d, req_type=%s' % (
+                  req_id, bank_id, account_id, amount, req_type))
 
 def random_req_type(weight, items):
     mysum = 0
