@@ -360,7 +360,7 @@ int read_config_server(string dir, string bankid, int chainno) {
   }
   if (reader.parse(ifs, root)) {
     Json::Value bank_list_json = root[JSON_BANKS];
-    for (int i = 0; i < bank_list_json.size(); i++) {
+    for (unsigned int i = 0; i < bank_list_json.size(); i++) {
       if (bank_list_json[i][JSON_BANKID].asString() == bankid) {
         Json::Value bank_json = bank_list_json[i];
         Json::Value server_list_json = bank_json[JSON_SERVERS];
@@ -376,7 +376,7 @@ int read_config_server(string dir, string bankid, int chainno) {
           if (chainno == 1) {  // check chainno started from 1?
             cs->set_ishead(true);
           }
-          if (chainno == server_list_json.size()) {
+          if (chainno == (int)server_list_json.size()) {
             cs->set_istail(true);
           }
           proto::Address local_addr;  // local address
@@ -460,7 +460,7 @@ READ_FINISH:
 bool get_server_json_with_chainno(Json::Value server_list_json,
                                   Json::Value& result_server_json,
                                   int chainno) {
-  for (int j = 0; j < server_list_json.size(); j++) {
+  for (unsigned int j = 0; j < server_list_json.size(); j++) {
     if (server_list_json[j][JSON_CHAINNO].asInt() == chainno) {
       result_server_json = server_list_json[j];
       return true;

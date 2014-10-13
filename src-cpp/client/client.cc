@@ -90,7 +90,7 @@ int read_config_client(string dir, vector<Client>& client_vector) {
   if (reader.parse(ifs, root)) {
     Json::Value client_list_json;
     client_list_json = root[JSON_CLIENTS];
-    for (int i = 0; i < client_list_json.size(); i++) {
+    for (unsigned int i = 0; i < client_list_json.size(); i++) {
       Json::Value client_json = client_list_json[i];
       // client basic info
       Client client;
@@ -107,8 +107,8 @@ int read_config_client(string dir, vector<Client>& client_vector) {
                 << ", resend_num=" << client.resend_num() << endl << endl;
       // bank info
       Json::Value bank_list_json = root[JSON_BANKS];
-      for (int i = 0; i < bank_list_json.size(); i++) {
-        Json::Value bank_json = bank_list_json[i];
+      for (unsigned int j = 0; j < bank_list_json.size(); j++) {
+        Json::Value bank_json = bank_list_json[j];
         Json::Value server_list_json = bank_json[JSON_SERVERS];
         proto::Address head_addr;  // head server address
         head_addr.set_ip(server_list_json[0][JSON_IP].asString());
@@ -129,7 +129,7 @@ int read_config_client(string dir, vector<Client>& client_vector) {
       vector<proto::Request> request_vector;
       if (!client_json.isMember("reqseed")) {	// read requests from file
         Json::Value request_json_list = client_json[JSON_REQUESTS];
-        for (int j = 0; j < request_json_list.size(); j++) {
+        for (unsigned int j = 0; j < request_json_list.size(); j++) {
           Json::Value request_json = request_json_list[j];
           proto::Request req;
           req.set_bank_id(request_json[JSON_BANKID].asString());
