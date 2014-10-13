@@ -4,6 +4,7 @@ from collections import deque
 import json
 import random 
 import bisect
+import copy
 
 JSON_CLIENTS = 'clients'
 JSON_CLIENTID = 'clientid'
@@ -61,7 +62,7 @@ class Server(process):
 
     def receive(msg=('ACK', ack), from_=s):
         self.recv_msg_seq += 1
-        output("[%d]Received ACK %s" % (self.recv_msg_seq, ack))
+        output("[%d]Received ACK %s\n" % (self.recv_msg_seq, ack))
         while len(self.sent) and self.sent[0].bank_update_seq <= ack.bank_update_seq:
             req = self.sent.popleft()
             self.update_processed_list(req)
@@ -72,7 +73,7 @@ class Server(process):
 
     def receive(msg=('REQUEST', req), from_=c):
         self.recv_msg_seq += 1
-        output("[%d]Received REQUEST %s" % (self.recv_msg_seq, req))
+        output("[%d]Received REQUEST %s\n" % (self.recv_msg_seq, req))
         if req.type == RequestType.QUERY:
             assert(self.is_tail)
             req.client = c
@@ -112,19 +113,19 @@ class Server(process):
 
     def forward_request(req):
         self.send_msg_seq += 1
-        output("[%d]Forwarding req to %s: %s" % (self.send_msg_seq, succ, req))
+        output("[%d]Forwarding req to %s: %s\n" % (self.send_msg_seq, succ, req))
         # output("sent list: %s" % self.sent)
         send(("REQUEST", req), to=succ)
 
     def reply_to_client(req):
         self.send_msg_seq += 1
-        output("[%d]Replying to %s: %s" % (self.send_msg_seq, req.client, req.reply))
+        output("[%d]Replying to %s: %s\n" % (self.send_msg_seq, req.client, req.reply))
         send(("REPLY", req.reply), to=req.client)
 
     def send_ack(req):
         self.send_msg_seq += 1
         ack = Acknowledge(req)
-        output("[%d]Sending ACK to %s: %s" % (self.send_msg_seq, req.client, ack))
+        output("[%d]Sending ACK to %s: %s\n" % (self.send_msg_seq, req.client, ack))
         send(("ACK", ack), to=prev)
 
     def head_handle_request(req):
@@ -159,25 +160,27 @@ class Server(process):
 
     # calculate reply
     def update_request_reply(req):
-        req.check_result = self.check_existing_request(req)
         reply = Reply(req)
+        req.check_result = self.check_existing_request(req, reply)
         if req.check_result == CheckExistingResult.INCONSISTENT:
+            reply.balance = self.bank.get_balance(req.account_id)
             reply.outcome = Outcome.INCONSISTENT_WITH_HISTORY
-        elif req.check_result == CheckExistingResult.PROCESSED:
-            reply.outcome = Outcome.PROCESSED
+        #elif req.check_result == CheckExistingResult.PROCESSED:
+            #reply.outcome = Outcome.PROCESSED
         elif req.check_result == CheckExistingResult.NEWREQ:
             update_result = self.bank.update_balance(req)
             if update_result == UpdateBalanceOutcome.INSUFFICIENTFUNDS:
                 reply.outcome = Outcome.INSUFFICIENT_FUNDS
             else:
                 reply.outcome = Outcome.PROCESSED
-        else:
-            assert(0)
+            reply.balance = self.bank.get_balance(req.account_id)
+        #else:
+            #assert(0)
 
-        reply.balance = self.bank.get_balance(req.account_id)
+        # reply.balance = self.bank.get_balance(req.account_id)
         req.reply = reply
 
-    def check_existing_request(req):
+    def check_existing_request(req, reply):
         account, is_new = self.bank.get_or_create_account(req.account_id)
         if is_new:
             return CheckExistingResult.NEWREQ
@@ -186,6 +189,8 @@ class Server(process):
         processed_req = account_processed.get(req.req_id)
         if processed_req:
             if req.consistent_with(processed_req):
+                reply.outcome = processed_req.reply.outcome
+                reply.balance = processed_req.reply.balance
                 return CheckExistingResult.PROCESSED
             else:
                 return CheckExistingResult.INCONSISTENT
@@ -193,6 +198,8 @@ class Server(process):
         for sent_req in self.sent:
             if req.req_id == sent_req.req_id:
                 if req.consistent_with(sent_req):
+                    reply.outcome = sent_req.reply.outcome
+                    reply.balance = sent_req.reply.balance
                     return CheckExistingResult.PROCESSED
                 else:
                     return CheckExistingResult.INCONSISTENT
@@ -220,14 +227,14 @@ class Client(process):
                 target = bank_heads[req.bank_id]
             self.recv[req.req_id] = 0
             self.send_msg_seq += 1
-            output("[%d]Sending Request to %s: %s" % (self.send_msg_seq, target, req))
+            output("[%d]Sending Request to %s: %s\n" % (self.send_msg_seq, target, req))
             send(('REQUEST', req), to=target)
             await(self.recv[req.req_id])
             # await(some(received(('REPLY', reply), has=(reply.req_id == req_id))))
 
     def receive(msg=('REPLY', reply), from_=s):
         self.recv_msg_seq += 1
-        output("[%d]Received REPLY %s" % (self.recv_msg_seq, reply))
+        output("[%d]Received REPLY %s\n" % (self.recv_msg_seq, reply))
         self.recv[reply.req_id] = 1
 
 class Bank:
@@ -338,7 +345,10 @@ class ClientConfig:
               bank_id = json_banks[bank_seq][JSON_BANKID] 
               account_seq = random.randint(1, account_num)
               account_id = "account%d" % (account_seq)
-              amount = random.randint(1, int(max_amount))
+              if (req_type == RequestType.QUERY):
+                  amount = 0
+              else:
+                  amount = random.randint(1, int(max_amount))
               req_id = "%s.%s.%d" % (bank_id, self.clientid, i+1)
               request = Request(req_id, req_type, bank_id, account_id, amount)
               self.request_list.append(request)

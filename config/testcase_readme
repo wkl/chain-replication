@@ -20,7 +20,7 @@ amount = 1000
 outcome = INSUFFICIENT_FUNDS
 balance = 100
 
-3. normal deposit
+3. normal withdraw
 req_id = bank3.client1.3
 account_id = account1
 type = WITHDRAW
@@ -70,7 +70,7 @@ server/server -c ../config/test2.json -b bank3 -n 2 -l ../logs
 server/server -c ../config/test2.json -b bank3 -n 3 -l ../logs
 client/client -c ../config/test2.json -l ../logs
 
-3 clients send 3 same requests to 3 bank chains simultaneously
+3 clients send 3 requests with same content but different req_id to 3 bank chains simultaneously
 req_id = bank1.client1.1
 account_id = account1
 type = DEPOSIT
