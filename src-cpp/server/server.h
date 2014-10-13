@@ -45,7 +45,7 @@ class ChainServer {
   void internal_handle_update(proto::Request* req);
   float get_balance(string account_id);
   void get_update_req_result(proto::Request* req);
-  proto::Request_CheckRequest check_update_request(const proto::Request& req);
+  proto::Request_CheckRequest check_update_request(const proto::Request& req, proto::Reply* reply);
   Account& get_or_create_account(const proto::Request& req, bool& new_account);
   bool req_consistent(const proto::Request& req1, const proto::Request& req2);
   ChainServer::UpdateBalanceOutcome update_balance(const proto::Request& req);

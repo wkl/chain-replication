@@ -65,7 +65,7 @@ void ChainServer::reply(const proto::Request& req) {
   LOG(INFO) << "Server sent udp message to "
             << client.ip() << ":" << client.port()
             << ", send_req_seq = " << send_msg_seq << endl
-            << req.ShortDebugString() << endl << endl;
+            << reply.ShortDebugString() << endl << endl;
 }
 
 void ChainServer::sendback_ack(const proto::Acknowledge& ack) {
@@ -138,6 +138,7 @@ void ChainServer::handle_query(proto::Request* req) {
   reply->set_outcome(proto::Reply::PROCESSED);
   reply->set_req_id(req->req_id());
   reply->set_balance(balance);
+  reply->set_account_id(req->account_id());
   req->set_allocated_reply(reply);
   cs->reply(*req);
 }
@@ -168,7 +169,7 @@ void ChainServer::tail_handle_update(proto::Request* req) {
     update_processed_update_list(*req);
   }
   if (req->type() != proto::Request::TRANSFERTO) {
-    reply(*req);
+    cs->reply(*req);
   }
   proto::Acknowledge ack;
   ack.set_bank_update_seq(req->bank_update_seq());
@@ -186,34 +187,38 @@ void ChainServer::internal_handle_update(proto::Request* req) {
 // used in all the xxxx_handle_update
 void ChainServer::get_update_req_result(proto::Request* req) {
   proto::Reply* reply = new proto::Reply;
-  proto::Request_CheckRequest check_result = check_update_request(*req);
+  reply->set_req_id(req->req_id());
+  reply->set_account_id(req->account_id());
+  proto::Request_CheckRequest check_result = check_update_request(*req, &(*reply));
   req->set_check_result(check_result);
+  float balance = 0;
   switch (check_result) {
     case proto::Request::INCONSISTENT:
       reply->set_outcome(proto::Reply::INCONSISTENT_WITH_HISTORY);
+      balance = get_balance(req->account_id());
       break;
     case proto::Request::PROCESSED:
-      reply->set_outcome(proto::Reply::PROCESSED);
       break;
     case proto::Request::NEWREQ:
       ChainServer::UpdateBalanceOutcome update_result = update_balance(*req);
       if (update_result ==
           ChainServer::UpdateBalanceOutcome::InsufficientFunds) {
         reply->set_outcome(proto::Reply::INSUFFICIENT_FUNDS);
+        balance = get_balance(req->account_id());
       } else {
         reply->set_outcome(proto::Reply::PROCESSED);
+        balance = get_balance(req->account_id());
       }
       break;
   }
-  reply->set_req_id(req->req_id());
-  float balance = get_balance(req->account_id());
-  reply->set_balance(balance);
+  if (check_result != proto::Request::PROCESSED)
+    reply->set_balance(balance);
   req->set_allocated_reply(reply);
 }
 
 // used in get_update_req_result
 proto::Request_CheckRequest ChainServer::check_update_request(
-    const proto::Request& req) {
+    const proto::Request& req, proto::Reply* reply) {
   bool new_account;
   get_or_create_account(req, new_account);
   if (new_account) return proto::Request::NEWREQ;
@@ -221,8 +226,10 @@ proto::Request_CheckRequest ChainServer::check_update_request(
   auto it = processed_update_map_.find(req.req_id() + "_" + req.account_id());
   if (it != processed_update_map_.end()) {
     // request exists in processed_update_map_
-    if (req_consistent(req, it->second))
+    if (req_consistent(req, it->second)) {
+      *reply = (it->second).reply();
       return proto::Request::PROCESSED;
+    }
     else
       return proto::Request::INCONSISTENT;
   }
@@ -231,8 +238,10 @@ proto::Request_CheckRequest ChainServer::check_update_request(
   for (auto it = sent_req_list_.begin(); it != sent_req_list_.end(); ++it) {
     if (req.req_id() == it->req_id()) {
       // request exists in sent_req_list_
-      if (req_consistent(req, *it))
+      if (req_consistent(req, *it)) {
+        *reply = (*it).reply();
         return proto::Request::PROCESSED;
+      }
       else
         return proto::Request::INCONSISTENT;
     }

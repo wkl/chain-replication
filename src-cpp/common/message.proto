@@ -52,7 +52,8 @@ message Reply {
 	}
 	required string req_id = 1;
 	required Outcome outcome = 2;
-	optional float balance = 3;
+        required string account_id = 3;
+	optional float balance = 4;
 }
 
 message Acknowledge {
