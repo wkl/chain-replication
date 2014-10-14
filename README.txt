@@ -72,7 +72,7 @@ Fedora:
 [Running: Distalgo]
 
 	$ cd <chain-replication>/src-da
-	$ python3 -m da chain.da ../config/test1.json		# assume distalgo is installed
+	$ python3 -m da chain.da ../config/test1.json		# assume distalgo(1.0.0b8) is installed
 or	$ python3 -m da -f -F info -L info chain.da ../config/test1.json	# also log to file
 
 
