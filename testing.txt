@@ -28,7 +28,23 @@ amount = 50
 outcome = PROCESSED
 balance = 50
 
-4. duplicate withdraw with 2
+4. duplicate deposit with 1
+req_id = bank3.client1.1
+account_id = account1
+type = DEPOSIT
+amount = 100
+outcome = PROCESSED
+balance = 100
+
+5. inconsistent deposit with 1
+req_id = bank3.client1.1
+account_id = account1
+type = DEPOSIT
+amount = 1000
+outcome = INCONSISTENT_WITH_HISTORY
+balance = 50
+
+6. duplicate withdraw with 2
 req_id = bank3.client1.2
 account_id = account1
 type = WITHDRAW
@@ -36,7 +52,7 @@ amount = 1000
 outcome = INSUFFICIENT_FUNDS
 balance = 100
 
-5. inconsistent withdraw with 2
+7. inconsistent withdraw with 2
 req_id = bank3.client1.2
 account_id = account1
 type = WITHDRAW
@@ -44,7 +60,7 @@ amount = 20
 outcome = INCONSISTENT_WITH_HISTORY
 balance = 50
 
-6. normal deposit for client2 with same req_id as 1
+8. normal deposit for client2 with same req_id as 1
 req_id = bank3.client1.1
 account_id = account2
 type = DEPOSIT
@@ -52,7 +68,7 @@ amount = 1000
 outcome = PROCESSED
 balance = 1000
 
-7. query
+9. normal query
 req_id = bank3.client1.4
 account_id = account1
 type = QUERY
