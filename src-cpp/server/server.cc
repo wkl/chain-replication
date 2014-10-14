@@ -80,7 +80,7 @@ void ChainServer::receive_ack(proto::Acknowledge* ack) {
   while (!sent_req_list_.empty() &&
          sent_req_list_.front().bank_update_seq() <= ack->bank_update_seq()) {
     proto::Request req = sent_req_list_.front();
-    update_processed_update_list(req);
+    insert_processed_list(req);
     pop_sent_req_list(req.req_id());
   }
   if (!ishead_) {
@@ -158,7 +158,7 @@ void ChainServer::single_handle_update(proto::Request* req) {
   write_log_reply(req->reply());
 
   if (req->check_result() == proto::Request::NEWREQ)
-    update_processed_update_list(*req);
+    insert_processed_list(*req);
 
   reply_to_client(*req);
 }
@@ -169,7 +169,7 @@ void ChainServer::tail_handle_update(proto::Request* req) {
   write_log_reply(req->reply());
 
   if (req->check_result() == proto::Request::NEWREQ)
-    update_processed_update_list(*req);
+    insert_processed_list(*req);
 
   if (req->type() != proto::Request::TRANSFERTO) reply_to_client(*req);
 
@@ -226,9 +226,9 @@ proto::Request_CheckRequest ChainServer::check_update_request(
   get_or_create_account(req, new_account);
   if (new_account) return proto::Request::NEWREQ;
 
-  auto it = processed_update_map_.find(req.req_id() + "_" + req.account_id());
-  if (it != processed_update_map_.end()) {
-    // request exists in processed_update_map_
+  auto it = processed_map_.find(req.req_id() + "_" + req.account_id());
+  if (it != processed_map_.end()) {
+    // request exists in processed_map_
     if (req_consistent(req, it->second)) {
       *reply = (it->second).reply();
       return proto::Request::PROCESSED;
@@ -237,7 +237,7 @@ proto::Request_CheckRequest ChainServer::check_update_request(
     }
   }
 
-  // doesn't exist in processed_update_map_
+  // doesn't exist in processed_map_
   for (auto it = sent_req_list_.begin(); it != sent_req_list_.end(); ++it) {
     if (req.req_id() == it->req_id()) {
       // request exists in sent_req_list_
@@ -319,10 +319,10 @@ ChainServer::UpdateBalanceOutcome ChainServer::update_balance(
 }
 
 // used in tail_handle_update(req) and single_handle_update(req)
-void ChainServer::update_processed_update_list(const proto::Request& req) {
-  auto it = processed_update_map_.find(req.req_id() + "_" + req.account_id());
-  if (it == processed_update_map_.end()) {  // doesn't exist in processed list
-    auto it_insert = processed_update_map_.insert(
+void ChainServer::insert_processed_list(const proto::Request& req) {
+  auto it = processed_map_.find(req.req_id() + "_" + req.account_id());
+  if (it == processed_map_.end()) {  // doesn't exist in processed list
+    auto it_insert = processed_map_.insert(
         std::make_pair(req.req_id() + "_" + req.account_id(), req));
     assert(it_insert.second);
     LOG(INFO) << "Server added request req_id=" << req.req_id()

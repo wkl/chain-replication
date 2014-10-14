@@ -50,7 +50,7 @@ class ChainServer {
   Account& get_or_create_account(const proto::Request& req, bool& new_account);
   bool req_consistent(const proto::Request& req1, const proto::Request& req2);
   ChainServer::UpdateBalanceOutcome update_balance(const proto::Request& req);
-  void update_processed_update_list(const proto::Request& req);
+  void insert_processed_list(const proto::Request& req);
   void insert_sent_req_list(const proto::Request& req);
   void pop_sent_req_list(string req_id);
   void write_log_reply(const proto::Reply& reply);
@@ -82,7 +82,7 @@ class ChainServer {
   bool istail_;
   // bool extending_chain_;
   // <"reqid_accountid", request>
-  unordered_map<string, proto::Request> processed_update_map_;
+  unordered_map<string, proto::Request> processed_map_;
   deque<proto::Request> sent_req_list_;
   unsigned int bank_update_seq_;
   proto::Address local_addr_;
