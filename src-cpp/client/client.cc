@@ -140,6 +140,7 @@ int read_config_client(string dir, vector<Client>& client_vector) {
           string type = request_json[JSON_TYPE].asString();
           if (type == JSON_QUERY) {
             req.set_type(proto::Request::QUERY);
+            req.set_amount(0);
           } else if (type == JSON_DEPOSIT) {
             req.set_type(proto::Request::DEPOSIT);
           } else if (type == JSON_WITHDRAW) {
@@ -196,7 +197,10 @@ int read_config_client(string dir, vector<Client>& client_vector) {
           string req_id =
               bankid + "." + client.clientid() + "." + std::to_string(i + 1);
           req.set_req_id(req_id);
-          req.set_amount(amount);
+          if (type == proto::Request::QUERY)
+            req.set_amount(0);
+          else
+            req.set_amount(amount);
           req.set_type(type);
           // write log
           std::map<proto::Request_RequestType, string> typestr_map;
