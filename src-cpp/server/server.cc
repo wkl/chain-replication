@@ -77,11 +77,11 @@ void ChainServer::sendback_ack(const proto::Acknowledge& ack) {
 }
 
 void ChainServer::receive_ack(proto::Acknowledge* ack) {
-  while (!sent_req_list_.empty() &&
-         sent_req_list_.front().bank_update_seq() <= ack->bank_update_seq()) {
-    proto::Request req = sent_req_list_.front();
+  while (!sent_list_.empty() &&
+         sent_list_.front().bank_update_seq() <= ack->bank_update_seq()) {
+    proto::Request req = sent_list_.front();
     insert_processed_list(req);
-    pop_sent_req_list(req.req_id());
+    pop_sent_list(req.req_id());
   }
   if (!ishead_) {
     sendback_ack(*ack);
@@ -145,16 +145,16 @@ void ChainServer::handle_query(proto::Request* req) {
 
 // head server handle update request
 void ChainServer::head_handle_update(proto::Request* req) {
-  get_update_req_result(req);
+  update_request_reply(req);
   write_log_reply(req->reply());
-  insert_sent_req_list(*req);
+  insert_sent_list(*req);
 
   forward_request(*req);
 }
 
 // single server handle update request
 void ChainServer::single_handle_update(proto::Request* req) {
-  get_update_req_result(req);
+  update_request_reply(req);
   write_log_reply(req->reply());
 
   if (req->check_result() == proto::Request::NEWREQ)
@@ -165,7 +165,7 @@ void ChainServer::single_handle_update(proto::Request* req) {
 
 // tail server handle update request
 void ChainServer::tail_handle_update(proto::Request* req) {
-  get_update_req_result(req);
+  update_request_reply(req);
   write_log_reply(req->reply());
 
   if (req->check_result() == proto::Request::NEWREQ)
@@ -180,15 +180,15 @@ void ChainServer::tail_handle_update(proto::Request* req) {
 
 // interval server handle update request
 void ChainServer::internal_handle_update(proto::Request* req) {
-  get_update_req_result(req);
+  update_request_reply(req);
   write_log_reply(req->reply());
-  insert_sent_req_list(*req);
+  insert_sent_list(*req);
 
   forward_request(*req);
 }
 
 // used in all the xxxx_handle_update
-void ChainServer::get_update_req_result(proto::Request* req) {
+void ChainServer::update_request_reply(proto::Request* req) {
   proto::Reply* reply = new proto::Reply;
   reply->set_req_id(req->req_id());
   reply->set_account_id(req->account_id());
@@ -219,7 +219,7 @@ void ChainServer::get_update_req_result(proto::Request* req) {
   req->set_allocated_reply(reply);
 }
 
-// used in get_update_req_result
+// used in update_request_reply
 proto::Request_CheckRequest ChainServer::check_update_request(
     const proto::Request& req, proto::Reply* reply) {
   bool new_account;
@@ -238,9 +238,9 @@ proto::Request_CheckRequest ChainServer::check_update_request(
   }
 
   // doesn't exist in processed_map_
-  for (auto it = sent_req_list_.begin(); it != sent_req_list_.end(); ++it) {
+  for (auto it = sent_list_.begin(); it != sent_list_.end(); ++it) {
     if (req.req_id() == it->req_id()) {
-      // request exists in sent_req_list_
+      // request exists in sent_list_
       if (req_consistent(req, *it)) {
         *reply = (*it).reply();
         return proto::Request::PROCESSED;
@@ -250,7 +250,7 @@ proto::Request_CheckRequest ChainServer::check_update_request(
     }
   }
 
-  // request doesn't exist in sent_req_list_ either
+  // request doesn't exist in sent_list_ either
   return proto::Request::NEWREQ;
 }
 
@@ -309,11 +309,21 @@ ChainServer::UpdateBalanceOutcome ChainServer::update_balance(
     if (account.balance() < req.amount()) {
       return ChainServer::UpdateBalanceOutcome::InsufficientFunds;
     } else {
+      float pre_balance = account.balance();
       account.set_balance(account.balance() - req.amount());
+      LOG(INFO) << "Balance of account " << account.accountid() 
+                << " changes from " << pre_balance 
+                << " to " << account.balance() 
+                << endl << endl;
       return ChainServer::UpdateBalanceOutcome::Success;
     }
   } else {
+    float pre_balance = account.balance();
     account.set_balance(account.balance() + req.amount());
+    LOG(INFO) << "Balance of account " << account.accountid() 
+              << " changes from " << pre_balance 
+              << " to " << account.balance() 
+              << endl << endl;
     return ChainServer::UpdateBalanceOutcome::Success;
   }
 }
@@ -331,15 +341,15 @@ void ChainServer::insert_processed_list(const proto::Request& req) {
 }
 
 // used in head_handle_update(req) and interval_handle_update(req)
-void ChainServer::insert_sent_req_list(const proto::Request& req) {
-  sent_req_list_.push_back(req);  // insert at the end of deque
+void ChainServer::insert_sent_list(const proto::Request& req) {
+  sent_list_.push_back(req);  // insert at the end of deque
   LOG(INFO) << "Server added request req_id=" << req.req_id()
             << " to sent update request list" << endl << endl;
 }
 
 // used in receive_ack(ack)
-void ChainServer::pop_sent_req_list(string req_id) {
-  sent_req_list_.pop_front();
+void ChainServer::pop_sent_list(string req_id) {
+  sent_list_.pop_front();
   LOG(INFO) << "Server removed request req_id=" << req_id
             << " from sent update request list" << endl << endl;
 }
