@@ -70,6 +70,7 @@ Fedora:
 	$ cat server_bank2_No2.INFO
 
 [Running: Distalgo]
+
 Assume Distalgo(1.0.0b8) is installed
 
 	$ cd <chain-replication>/src-da
@@ -96,9 +97,13 @@ src-da/
 BUGS AND LIMITATIONS
 --------------------
 
+- Server can handle only one TCP incoming connection at a time, which is
+sufficient for this phase since we do not have master.
+
 
 CONTRIBUTIONS
 -------------
+
 C++
 - Communication (Kelong)
 - Chain/Bank state machine (Dandan)
@@ -117,4 +122,5 @@ Common / Misc
 
 OTHER COMMENTS
 --------------
+
 - Pseudo-code may be not updated.
