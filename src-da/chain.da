@@ -41,22 +41,25 @@ class Server(process):
         self.is_tail = True if not succ else False
 
         self.bank = Bank(bank_id)
-        self.bank_update_seq = 0
+        self.bank_update_seq = 0    # unique sequence number in each chain
         self.processed = {}
         self.sent = deque()
         self.send_msg_seq = 0
         self.recv_msg_seq = 0
 
     def main():
+        # do nothing in main loop
         await(0)
 
-    # output log with bank id
+    # prefix output log with bank and server id
     def server_output(log):
         output("[%s-%d] %s\n\n" % (self.bank.bank_id, server_id, log))
 
     def receive(msg=('ACK', ack), from_=s):
         self.recv_msg_seq += 1
         self.server_output("(%d) Received ACK %s" % (self.recv_msg_seq, ack))
+
+        # move request from sent list to processed list on ACK event
         while len(self.sent) and self.sent[0].bank_update_seq <= ack.bank_update_seq:
             req = self.sent.popleft()
             self.server_output("remove request %s from sent list" % req.req_id)
@@ -69,6 +72,8 @@ class Server(process):
     def receive(msg=('REQUEST', req), from_=c):
         self.recv_msg_seq += 1
         self.server_output("(%d) Received REQUEST %s" % (self.recv_msg_seq, req))
+
+        # tail handle query request
         if req.type == RequestType.QUERY:
             assert(self.is_tail)
             req.client = c
@@ -106,6 +111,7 @@ class Server(process):
         assert(not self.is_head and not self.is_tail)
         return self.internal_handle_request(req)
 
+    # forward request to next server
     def forward_request(req):
         self.send_msg_seq += 1
         self.server_output("(%d) Forwarding req to %s: %s" % (self.send_msg_seq, succ, req))
@@ -117,6 +123,7 @@ class Server(process):
         self.server_output("(%d) Replying to %s: %s" % (self.send_msg_seq, req.client, req.reply))
         send(("REPLY", req.reply), to=req.client)
 
+    # send ack back to previous server
     def send_ack(req):
         self.send_msg_seq += 1
         ack = Acknowledge(req)
@@ -158,7 +165,7 @@ class Server(process):
             account_processed[req.req_id] = req
         # output("processed list: %s" % self.processed)
 
-    # calculate reply
+    # calculate reply for the request
     def update_request_reply(req):
         req.is_new = False
         reply = self.build_reply_from_history(req)
