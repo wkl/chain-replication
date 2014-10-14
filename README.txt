@@ -57,10 +57,11 @@ Fedora:
 2. Run test cases with script (preferred)
 
 	$ cd <chain-replication>/src-cpp
-	$ ./run_case.sh 1
-	$ ./run_case.sh 2
-	$ ./run_case.sh 3
-	$ ./run_case.sh 4
+	$ ./run_case_server.sh 1
+	$ ./run_case_client.sh 1
+	$ ./run_case_server.sh 2
+	$ ./run_case_client.sh 2
+	...
 
 3. Logging
 	
@@ -68,6 +69,7 @@ Fedora:
 	$ cat server_bank1_No1.INFO
 	$ cat server_bank2_No1.INFO
 	$ cat server_bank2_No2.INFO
+	...
 
 [Running: Distalgo]
 
@@ -75,6 +77,8 @@ Assume Distalgo(1.0.0b8) is installed
 
 	$ cd <chain-replication>/src-da
 	$ python3 -m da chain.da ../config/test1.json
+	$ python3 -m da chain.da ../config/test2.json
+	...
 
 or append log to 'chain.log':
         $ python3 -m da -f -F info -L info chain.da ../config/test1.json
