@@ -60,7 +60,8 @@ class Server(process):
         self.server_output("(%d) Received ACK %s" % (self.recv_msg_seq, ack))
         while len(self.sent) and self.sent[0].bank_update_seq <= ack.bank_update_seq:
             req = self.sent.popleft()
-            self.update_processed_list(req)
+            self.server_output("remove request %s from sent list" % req.req_id)
+            self.insert_processed_list(req)
 
         # output("sent list: %s" % self.sent)
         if not self.is_head:
@@ -125,31 +126,36 @@ class Server(process):
 
     def head_handle_request(req):
         self.update_request_reply(req)
-        self.sent.append(req)
+        self.insert_sent_list(req)
         self.forward_request(req)
 
     def single_handle_request(req):
         self.update_request_reply(req)
         if req.is_new:
-            self.update_processed_list(req)
+            self.insert_processed_list(req)
         self.reply_to_client(req)
 
     def tail_handle_request(req):
         self.update_request_reply(req)
         if req.is_new:
-            self.update_processed_list(req)
+            self.insert_processed_list(req)
         if req.type != RequestType.TRANSFER_TO:
             self.reply_to_client(req)
         send_ack(req)
 
     def internal_handle_request(req):
         self.update_request_reply(req)
-        self.sent.append(req)
+        self.insert_sent_list(req)
         self.forward_request(req)
 
-    def update_processed_list(req):
+    def insert_sent_list(req):
+        self.server_output("add request %s to sent list" % req.req_id)
+        self.sent.append(req)
+
+    def insert_processed_list(req):
         account_processed = self.processed.setdefault(req.account_id, {})
         if not account_processed.get(req.req_id):
+            self.server_output("add request %s to processed list" % req.req_id)
             account_processed[req.req_id] = req
         # output("processed list: %s" % self.processed)
 
