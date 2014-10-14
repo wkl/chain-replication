@@ -70,11 +70,16 @@ Fedora:
 	$ cat server_bank2_No2.INFO
 
 [Running: Distalgo]
+Assume Distalgo(1.0.0b8) is installed
 
 	$ cd <chain-replication>/src-da
-	$ python3 -m da chain.da ../config/test1.json		# assume distalgo(1.0.0b8) is installed
-or	$ python3 -m da -f -F info -L info chain.da ../config/test1.json	# also log to file
+	$ python3 -m da chain.da ../config/test1.json
 
+or append log to 'chain.log':
+        $ python3 -m da -f -F info -L info chain.da ../config/test1.json
+
+or append log to specific file:
+        $ python3 -m da -f --logfilename test1.log -F info -L info chain.da ../config/test1.json
 
 MAIN FILES
 ----------
