@@ -17,7 +17,7 @@ INSTRUCTIONS
 Mac OS X:
 	$ brew install boost
 	$ brew install protobuf
-	$ brew install https://raw.githubusercontent.com/Homebrew/homebrew/9e30a42153889a81a813c8689cfa3f51ec3364b9/Library/Formula/jsoncpp.rb
+	$ brew install jsoncpp
 	$ brew install glog
 Ubuntu:
 	$ sudo apt-get install libboost-all-dev
