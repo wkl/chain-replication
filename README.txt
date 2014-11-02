@@ -3,7 +3,7 @@ INSTRUCTIONS
 
 [Dependency: C++]
 
-- Autotools
+- Autotools / pkg-config
 - Clang (v3.4.0 is known to work) / GCC (v4.8.2 is known to work)
 - Boost (v1.54.0 is known to work)
 - Protocol Buffers (v2.5.0 is known to work)

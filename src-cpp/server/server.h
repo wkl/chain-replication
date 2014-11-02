@@ -12,6 +12,7 @@
 #include <thread>
 #include <unordered_map>
 #include <deque>
+#include <chrono>
 
 #include "common.h"
 #include "message.h"
@@ -100,11 +101,6 @@ class ChainServerTCPLoop : public TCPLoop {
   using TCPLoop::TCPLoop;
   void handle_msg(proto::Message& msg, proto::Address& from_addr);
 };
-
-// global
-int read_config_server(string dir, string bankid, int chainno);
-bool get_server_json_with_chainno(Json::Value server_list_json,
-                                  Json::Value& result_server_json, int chainno);
 
 #endif
 

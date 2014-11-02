@@ -6,11 +6,13 @@ message Message {
 		REQUEST = 0;
 		REPLY = 1;
 		ACKNOWLEDGE = 2;
+		HEARTBEAT = 3;
 	}
 	required MessageType type = 1;
 	optional Request request = 2;
 	optional Reply reply = 3;
 	optional Acknowledge ack = 4;
+	optional Heartbeat heartbeat = 5;
 }
 
 message Address {
@@ -58,4 +60,9 @@ message Reply {
 
 message Acknowledge {
 	required uint32 bank_update_seq = 1;
+}
+
+message Heartbeat {
+	required string bank_id = 1;
+	required Address server_addr = 2;
 }

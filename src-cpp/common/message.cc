@@ -160,7 +160,14 @@ void prepare_msg(proto::Message &msg,
       msg.set_allocated_ack(tmp);
       break;
     }
+    case proto::Message::HEARTBEAT: {
+      auto *tmp = new proto::Heartbeat();
+      tmp->CopyFrom(sub_msg);
+      msg.set_allocated_heartbeat(tmp);
+      break;
+    }
     default:
+      LOG(ERROR) << "Unknown msg type";
       assert(0);  // should not reach here
       break;
   }

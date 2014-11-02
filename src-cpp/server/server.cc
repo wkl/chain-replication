@@ -4,6 +4,12 @@
 namespace po = boost::program_options;
 
 std::unique_ptr<ChainServer> cs;
+proto::Address master_addr;
+int heartbeat_interval;
+
+int read_config_server(string dir, string bankid, int chainno);
+bool get_server_json_with_chainno(Json::Value server_list_json,
+                                  Json::Value& result_server_json, int chainno);
 
 void ChainServerUDPLoop::handle_msg(proto::Message& msg,
                                     proto::Address& from_addr) {
@@ -373,6 +379,21 @@ void ChainServer::write_log_reply(const proto::Reply& reply) {
             << endl << endl;
 }
 
+// TODO delayed server also delay heartbeat?
+void heartbeat() {
+  proto::Heartbeat hb;
+  hb.set_bank_id(cs->bank_id());
+  auto *server_addr = new proto::Address();
+  server_addr->CopyFrom(cs->local_addr());
+  hb.set_allocated_server_addr(server_addr);
+
+  for (;;) {
+    // send_msg_seq++; // TODO should we count heartbeat?
+    send_msg_tcp(master_addr, proto::Message::HEARTBEAT, hb);
+    std::this_thread::sleep_for(std::chrono::seconds(heartbeat_interval));
+  }
+}
+
 // read configuration file for a server
 int read_config_server(string dir, string bankid, int chainno) {
   Json::Reader reader;
@@ -539,8 +560,15 @@ int main(int argc, char* argv[]) {
       ChainServerTCPLoop tcp_loop(cs->local_addr().port());
       std::thread udp_thread(udp_loop);
       std::thread tcp_thread(tcp_loop);
+
+      heartbeat_interval = 2;
+      master_addr.set_ip("127.0.0.1");
+      master_addr.set_port(50000);
+      std::thread heartbeat_thread(heartbeat);
+
       udp_thread.join();
       tcp_thread.join();
+      heartbeat_thread.join();
     } else {
       LOG(ERROR) << "Please input the config-file path, bankid and the server "
                     "sequence in the chain" << endl << endl;

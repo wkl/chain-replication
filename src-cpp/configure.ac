@@ -53,6 +53,7 @@ AC_SUBST([my_CPPFLAGS])
 
 AC_CONFIG_FILES([Makefile
 		 common/Makefile
+		 master/Makefile
                  server/Makefile
 		 client/Makefile])
 AC_OUTPUT
