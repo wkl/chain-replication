@@ -1,14 +1,17 @@
 #include "client.h"
+#include "udp_client.h"
 
 #include <boost/program_options.hpp>
 namespace po = boost::program_options;
 
 void Client::handle_msg(proto::Message& msg) {
   switch (msg.type()) {
-    case proto::Message::REPLY:
-      assert(msg.has_reply());
-      receive_reply(msg.reply());
+    /*
+    case proto::Message::NEW_HEAD:
+      assert(msg.has_new_head());
+      // update_new_head
       break;
+    */
     default:
       LOG(ERROR) << "no handler for message type (" << msg.type() << ")" << endl
                  << endl;
@@ -16,60 +19,98 @@ void Client::handle_msg(proto::Message& msg) {
   }
 }
 
-// client deal with reply
-void Client::receive_reply(const proto::Reply& reply) {}
-
 void Client::run() {
-  // ugly, may refactor with UDPLoop
-  boost::asio::io_service io_service;
-  udp::socket sock(io_service, udp::endpoint(udp::v4(), port_));  // receiver
   char data[UDP_MAX_LENGTH];
   udp::endpoint sender_endpoint;
-  size_t length;
+  udp::endpoint listen_endpoint(address::from_string(ip_), port_);
+  UDPReceiver receiver(listen_endpoint);
 
   try {
-    for (auto it = request_vector_.begin(); it != request_vector_.end(); ++it) {
-      proto::Request req = *it;
+    for (auto req : request_vector_) {
       // client address
       proto::Address* local_addr = new proto::Address;
       local_addr->set_ip(ip_);
       local_addr->set_port(port_);
       req.set_allocated_client_addr(local_addr);
-      // bank server address
-      string bankid = req.bank_id();
-      auto it_head = bank_head_list_.find(bankid);
-      assert(it_head != bank_head_list_.end());
-      proto::Address head_addr = (*it_head).second;
-      auto it_tail = bank_tail_list_.find(bankid);
-      assert(it_tail != bank_tail_list_.end());
-      proto::Address tail_addr = (*it_tail).second;
 
       // check request type and send request
-      if (req.type() == proto::Request::QUERY) {
-        send_msg_seq++;
-        send_msg_udp(*local_addr, tail_addr, proto::Message::REQUEST, req);
-        LOG(INFO) << "Client " << clientid_ << " sent udp message to "
-                  << tail_addr.ip() << ":" << tail_addr.port()
-                  << ", send_req_seq = " << send_msg_seq << endl
-                  << req.ShortDebugString() << endl << endl;
-      } else {
-        send_msg_seq++;
-        send_msg_udp(*local_addr, head_addr, proto::Message::REQUEST, req);
-        LOG(INFO) << "Client " << clientid_ << " sent udp message to "
-                  << head_addr.ip() << ":" << head_addr.port()
-                  << ", send_req_seq = " << send_msg_seq << endl
-                  << req.ShortDebugString() << endl << endl;
+      proto::Address target;
+      if (req.type() == proto::Request::QUERY)
+        target = get_bank_tail(req.bank_id());
+      else
+        target = get_bank_head(req.bank_id());
+
+      int send_count = -1;  // retry count
+      // if we receive unrelated responses, just receive again instead of send
+      bool should_send_request = true;
+      while (true) {
+        send_count++;
+        if (send_count > resend_num_) {
+          LOG(INFO) << clientid_ << " abort this request (" << req.req_id()
+                    << ")" << endl << endl;
+          break;
+        }
+
+        if (should_send_request) {
+          if (if_resend_ && send_count > 0) {  // try new head / tail
+            if (req.type() == proto::Request::QUERY)
+              target = get_bank_tail(req.bank_id());
+            else
+              target = get_bank_head(req.bank_id());
+          }
+          if (send_count > 0) {
+            LOG(INFO) << clientid_ << ": retrying (" << send_count << " of "
+                      << resend_num_ << ")" << endl;
+          }
+          send_msg_seq++;
+          send_msg_udp(*local_addr, target, proto::Message::REQUEST, req);
+          LOG(INFO) << clientid_ << ": sent udp message to " << target.ip()
+                    << ":" << target.port()
+                    << ", send_req_seq = " << send_msg_seq << endl
+                    << req.ShortDebugString() << endl << endl;
+        }
+
+        // receive
+        boost::system::error_code ec;
+        size_t length = receiver.receive(
+            boost::asio::buffer(data, UDP_MAX_LENGTH), sender_endpoint,
+            boost::posix_time::seconds(wait_timeout_), ec);
+        if (ec) {
+          LOG(INFO) << clientid_ << ": receive timeout: " << ec.message()
+                    << endl << endl;
+          should_send_request = true;
+          continue;
+        }
+
+        proto::Message msg;
+        assert(decode_msg(msg, data, length));
+
+        // TODO drop packet on purpose by probability
+        bool drop_this_reply = false;
+        if (msg.type() == proto::Message::REPLY) {
+          assert(msg.reply().req_id() == req.req_id());  // TODO ignore unmatch
+          if (drop_this_reply) {
+            // have a sleep; TODO removed this sleep?
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            LOG(INFO) << clientid_ << ": receive timeout: "
+                      << "reply packet dropped" << endl << endl;
+            should_send_request = true;
+            continue;
+          }
+        }
+
+        rec_msg_seq++;
+        LOG(INFO) << clientid_ << ": received udp message from "
+                  << sender_endpoint << ", recv_req_seq = " << rec_msg_seq
+                  << endl << msg.ShortDebugString() << endl << endl;
+
+        if (msg.type() == proto::Message::REPLY)
+          break;  // request & reply completed
+
+        // we received other notifications like NEW_HEAD.
+        should_send_request = false;
+        handle_msg(msg);
       }
-      // receive
-      length = sock.receive_from(asio::buffer(data, UDP_MAX_LENGTH),
-                                 sender_endpoint);
-      proto::Message msg;
-      assert(decode_msg(msg, data, length));
-      rec_msg_seq++;
-      LOG(INFO) << "Client " << clientid_ << " received udp message from "
-                << sender_endpoint << ", rec_req_seq = " << rec_msg_seq << endl
-                << msg.ShortDebugString() << endl << endl;
-      handle_msg(msg);
     }
   } catch (std::exception& e) {
     LOG(ERROR) << "error: " << e.what() << endl << endl;
@@ -284,4 +325,3 @@ int main(int argc, char* argv[]) {
 
   return 0;
 }
-

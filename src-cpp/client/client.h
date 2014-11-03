@@ -35,7 +35,6 @@ class Client {
   void run();
 
   void handle_msg(proto::Message& msg);
-  void receive_reply(const proto::Reply& reply);
 
   // getter/setter
   void set_ip(string ip) { ip_ = ip; };
@@ -50,24 +49,43 @@ class Client {
   int resend_num() { return resend_num_; };
   void set_if_resend(bool if_resend) { if_resend_ = if_resend; };
   bool if_resend() { return if_resend_; };
+
   void set_request_vector(vector<proto::Request> request_vector) {
     request_vector_ = request_vector;
   };
+
   vector<proto::Request>& request_vector() { return request_vector_; };
+
   void set_bank_head_list(
       unordered_map<string, proto::Address> bank_head_list) {
     bank_head_list_ = bank_head_list;
   };
+
   unordered_map<string, proto::Address>& bank_head_list() {
     return bank_head_list_;
   };
+
   void set_bank_tail_list(
       unordered_map<string, proto::Address> bank_tail_list) {
     bank_tail_list_ = bank_tail_list;
   };
+
   unordered_map<string, proto::Address>& bank_tail_list() {
     return bank_tail_list_;
   };
+
+  // return a copy of address
+  proto::Address get_bank_head(string bankid) {
+      auto it_head = bank_head_list_.find(bankid);
+      assert(it_head != bank_head_list_.end());
+      return it_head->second;
+  }
+
+  proto::Address get_bank_tail(string bankid) {
+      auto it_tail = bank_tail_list_.find(bankid);
+      assert(it_tail != bank_tail_list_.end());
+      return it_tail->second;
+  }
 
  private:
   string ip_;

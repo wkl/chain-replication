@@ -18,8 +18,8 @@ void ChainServerUDPLoop::handle_msg(proto::Message& msg,
     case proto::Message::REQUEST:
       assert(msg.has_request());
       LOG(INFO) << "Server received udp message from " << from_addr.ip() << ":"
-                << from_addr.port() << ", rec_req_seq = " << rec_msg_seq << endl
-                << msg.ShortDebugString() << endl << endl;
+                << from_addr.port() << ", recv_req_seq = " << rec_msg_seq
+                << endl << msg.ShortDebugString() << endl << endl;
       cs->receive_request(msg.mutable_request());
       break;
     default:
@@ -36,15 +36,15 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg,
     case proto::Message::REQUEST:
       assert(msg.has_request());
       LOG(INFO) << "Server received tcp message from " << from_addr.ip() << ":"
-                << from_addr.port() << ", rec_req_seq = " << rec_msg_seq << endl
-                << msg.ShortDebugString() << endl << endl;
+                << from_addr.port() << ", recv_req_seq = " << rec_msg_seq
+                << endl << msg.ShortDebugString() << endl << endl;
       cs->receive_request(msg.mutable_request());
       break;
     case proto::Message::ACKNOWLEDGE:
       assert(msg.has_ack());
       LOG(INFO) << "Server received tcp message from " << from_addr.ip() << ":"
-                << from_addr.port() << ", rec_req_seq = " << rec_msg_seq << endl
-                << msg.ShortDebugString() << endl << endl;
+                << from_addr.port() << ", recv_req_seq = " << rec_msg_seq
+                << endl << msg.ShortDebugString() << endl << endl;
       cs->receive_ack(msg.mutable_ack());
       break;
     default:
