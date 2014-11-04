@@ -9,12 +9,27 @@ int crash_timeout;
 
 void MasterTCPLoop::handle_msg(proto::Message& msg, proto::Address& from_addr) {
   rec_msg_seq++;
+  LOG(INFO) << "Master received tcp message from " << from_addr.ip() << ":"
+      << from_addr.port() << ", recv_req_seq = " << rec_msg_seq << endl
+      << msg.ShortDebugString() << endl << endl;
+
   switch (msg.type()) {
     case proto::Message::HEARTBEAT:
       assert(msg.has_heartbeat());
-//      LOG(INFO) << "Master received tcp message from " << from_addr.ip() << ":"
-//                << from_addr.port() << ", rec_req_seq = " << rec_msg_seq << endl
-//                << msg.ShortDebugString() << endl << endl;
+      master->handle_heartbeat(msg.heartbeat());
+      break;
+    default:
+      LOG(ERROR) << "no handler for message type (" << msg.type() << ")" << endl
+                 << endl;
+      break;
+  }
+}
+
+void MasterUDPLoop::handle_msg(proto::Message& msg, proto::Address& from_addr) {
+  rec_msg_seq++;
+  switch (msg.type()) {
+    case proto::Message::HEARTBEAT:
+      assert(msg.has_heartbeat());
       master->handle_heartbeat(msg.heartbeat());
       break;
     default:
@@ -125,21 +140,27 @@ int main(int argc, char* argv[]) {
 
     MasterTCPLoop tcp_loop(50000);
     std::thread tcp_thread(tcp_loop);
+    MasterUDPLoop udp_loop(50000);
+    std::thread udp_thread(udp_loop);
 
     check_alive_interval = 5;
     crash_timeout = 5;
     std::thread check_alive_thread(check_alive);
 
     tcp_thread.join();
+    udp_thread.join();
     check_alive_thread.join();
     // end test data
 
     /* TODO read data from config file
     if (vm.count("config-file")) {
       MasterTCPLoop tcp_loop(master->addr().port());
+      MasterUDPLoop udp_loop(master->addr().port());
       std::thread tcp_thread(tcp_loop);
+      std::thread udp_thread(udp_loop);
       std::thread check_alive_thread(tcp_loop);
       tcp_thread.join();
+      udp_thread.join();
       check_alive_thread.join();
     } else {
       LOG(ERROR) << "Please input the config-file path" << endl << endl;

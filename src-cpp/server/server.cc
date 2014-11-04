@@ -389,7 +389,7 @@ void heartbeat() {
 
   for (;;) {
     // send_msg_seq++; // TODO should we count heartbeat?
-    send_msg_tcp(master_addr, proto::Message::HEARTBEAT, hb);
+    send_msg_udp(cs->local_addr(), master_addr, proto::Message::HEARTBEAT, hb);
     std::this_thread::sleep_for(std::chrono::seconds(heartbeat_interval));
   }
 }

@@ -117,4 +117,9 @@ class MasterTCPLoop : public TCPLoop {
   void handle_msg(proto::Message& msg, proto::Address& from_addr);
 };
 
+class MasterUDPLoop : public UDPLoop {
+  using UDPLoop::UDPLoop;
+  void handle_msg(proto::Message& msg, proto::Address& from_addr);
+};
+
 #endif
