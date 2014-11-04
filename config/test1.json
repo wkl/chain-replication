@@ -1,4 +1,10 @@
 {
+    "config": {
+        "server_ping_interval": 1,
+        "fail_without_ping": 5,
+        "tcp_timeout": 3,
+        "udp_lost_seq": 1
+    },
     "master": {
         "ip": "127.0.0.1",
         "port": 50000
@@ -6,64 +12,22 @@
     "banks": [
         {
             "bankid": "bank1",
-            "chainlen": 1,
-            "clientnum": 2,
+            "chainlen": 2,
             "servers": [
                 {
                     "ip": "127.0.0.1",
                     "port": 50001,
                     "chainno": 1,
                     "startdelay": 0,
-                    "lifetime": "unbounded"
-                }
-            ]
-        },
-        {
-            "bankid": "bank2",
-            "chainlen": 2,
-            "clientnum": 2,
-            "servers": [
+                    "failscenario": "fail_after_recv",
+                    "failseq": "2"
+                },
                 {
                     "ip": "127.0.0.1",
                     "port": 50002,
-                    "chainno": 1,
-                    "startdelay": 0,
-                    "lifetime": "unbounded"
-                },
-                {
-                    "ip": "127.0.0.1",
-                    "port": 50003,
                     "chainno": 2,
                     "startdelay": 0,
-                    "lifetime": "unbounded"
-                }
-            ]
-        },
-        {
-            "bankid": "bank3",
-            "chainlen": 3,
-            "clientnum": 2,
-            "servers": [
-                {
-                    "ip": "127.0.0.1",
-                    "port": 50004,
-                    "chainno": 1,
-                    "startdelay": 0,
-                    "lifetime": "unbounded"
-                },
-                {
-                    "ip": "127.0.0.1",
-                    "port": 50005,
-                    "chainno": 2,
-                    "startdelay": 0,
-                    "lifetime": "unbounded"
-                },
-                {
-                    "ip": "127.0.0.1",
-                    "port": 50006,
-                    "chainno": 3,
-                    "startdelay": 0,
-                    "lifetime": "unbounded"
+                    "failscenario": "none"
                 }
             ]
         }
@@ -78,66 +42,25 @@
             "ifresend": true,
             "requests": [
                 {
-                    "bankid": "bank3",
+                    "bankid": "bank1",
                     "accountid": "account1",
                     "seq": 1,
                     "type": "DEPOSIT",
                     "amount": 100
                 },
                 {
-                    "bankid": "bank3",
+                    "bankid": "bank1",
                     "accountid": "account1",
                     "seq": 2,
-                    "type": "WITHDRAW",
-                    "amount": 1000
-                },
-		{
-                    "bankid": "bank3",
-                    "accountid": "account1",
-                    "seq": 3,
                     "type": "WITHDRAW",
                     "amount": 50
                 },
                 {
-                    "bankid": "bank3",
+                    "bankid": "bank1",
                     "accountid": "account1",
-                    "seq": 1,
+                    "seq": 3,
                     "type": "DEPOSIT",
-                    "amount": 100
-                },
-                {
-                    "bankid": "bank3",
-                    "accountid": "account1",
-                    "seq": 1,
-                    "type": "DEPOSIT",
-                    "amount": 1000
-                },
-                {
-                    "bankid": "bank3",
-                    "accountid": "account1",
-                    "seq": 2,
-                    "type": "WITHDRAW",
-                    "amount": 1000
-                },
-		{
-                    "bankid": "bank3",
-                    "accountid": "account1",
-                    "seq": 2,
-                    "type": "WITHDRAW",
-                    "amount": 20
-                },
-                {
-                    "bankid": "bank3",
-                    "accountid": "account2",
-                    "seq": 1,
-                    "type": "DEPOSIT",
-                    "amount": 1000
-                },
-                {
-                    "bankid": "bank3",
-                    "accountid": "account1",
-                    "seq": 4,
-                    "type": "QUERY"
+                    "amount": 150
                 }
             ]
         }
