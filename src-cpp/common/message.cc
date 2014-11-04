@@ -186,9 +186,15 @@ bool send_msg_tcp(proto::Address target,
                   const proto::Message_MessageType msg_type,
                   const pb::Message &sub_msg) {
   asio::io_service io_service;
+  boost::system::error_code ec;
   tcp::socket s(io_service);
   tcp::endpoint endpoint(address::from_string(target.ip()), target.port());
-  s.connect(endpoint);
+
+  s.connect(endpoint, ec);
+  if (ec) {
+    LOG(INFO) << "Fail to connect to " << endpoint;
+    return false;
+  }
 
   proto::Message msg;
   prepare_msg(msg, msg_type, sub_msg);
@@ -201,7 +207,12 @@ bool send_msg_tcp(proto::Address target,
             << " from: " << s.local_endpoint() << " to: " << s.remote_endpoint()
             << std::endl << sub_msg.ShortDebugString() << std::endl;
   */
-  asio::write(s, asio::buffer(buf, buf_size));
+  asio::write(s, asio::buffer(buf, buf_size), ec);
+  if (ec) {
+    LOG(INFO) << "Fail to write data to " << endpoint;
+    return false;
+  }
+
   s.shutdown(boost::asio::ip::tcp::socket::shutdown_both);
   s.close();
   return true;
