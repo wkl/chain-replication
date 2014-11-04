@@ -166,6 +166,7 @@ int read_config_client(string dir, vector<Client>& client_vector) {
         assert(it_tail.second);
       }
       // request info
+      srand((unsigned)time(0));
       vector<proto::Request> request_vector;
       if (!client_json.isMember("reqseed")) {  // read requests from file
         Json::Value request_json_list = client_json[JSON_REQUESTS];
@@ -220,7 +221,6 @@ int read_config_client(string dir, vector<Client>& client_vector) {
         genreq_map[prob_query + prob_deposit] = proto::Request::DEPOSIT;
         genreq_map[prob_query + prob_deposit + prob_withdraw] =
             proto::Request::WITHDRAW;
-        srand((unsigned)time(0));
         for (int i = 0; i < req_num; i++) {
           proto::Request req;
           // generate random data

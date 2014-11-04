@@ -78,7 +78,11 @@ class BankServerChain {
   Node* get_node(const proto::Address& addr);
   list<Node>& server_chain() { return server_chain_; };
 
+  void set_bank_id(string bank_id) { bank_id_ = bank_id; };
+  string bank_id() { return bank_id_; };
+
  private:
+  string bank_id_;
   proto::Address head_;
   proto::Address tail_;
   list<Node> server_chain_;
@@ -98,6 +102,10 @@ class Master {
     assert(it != bank_server_chain_.end());
     return it->second;
   }
+  void add_client(string client_id, proto::Address& client_addr) {
+    auto it = client_list_.insert(std::make_pair(client_id, client_addr));
+    assert(it.second);
+  }
 
   // getter/setter
   void set_addr(proto::Address addr) { addr_ = addr; };
@@ -110,6 +118,8 @@ class Master {
   proto::Address addr_;
   // <bankid, chain>
   unordered_map<string, BankServerChain> bank_server_chain_;
+  // <clientid, client_addr>
+  unordered_map<string, proto::Address> client_list_;
 };
 
 class MasterTCPLoop : public TCPLoop {

@@ -1,0 +1,5 @@
+test1:  master/master -c ../config/test1.json
+original chain length is 2, header fails
+
+test2:
+original chain length is 3, header fails

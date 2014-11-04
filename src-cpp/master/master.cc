@@ -83,6 +83,68 @@ void check_alive() {
   }
 }
 
+int read_config_master(string dir) {
+  Json::Reader reader;
+  Json::Value root;
+  std::ifstream ifs;
+  ifs.open(dir, std::ios::binary);
+  if (!ifs.is_open()) {
+    LOG(ERROR) << "Fail to open the config file: " << dir << endl << endl;
+    return 1;
+  }
+  if (!reader.parse(ifs, root)) {
+    ifs.close();
+    LOG(ERROR) << "Fail to parse the config file: " << dir << endl << endl;
+    return 1;
+  }
+  Json::Value config_json = root[JSON_CONFIG];
+  // config info
+  check_alive_interval = config_json[JSON_SERVER_REPORT_INTERVAL].asInt();  
+  crash_timeout = config_json[JSON_SERVER_FAIL_TIMEOUT].asInt(); 
+  Json::Value master_json = root[JSON_MASTER];
+  proto::Address master_addr;  
+  // master address
+  master_addr.set_ip(master_json[JSON_IP].asString());
+  master_addr.set_port(master_json[JSON_PORT].asInt());
+  master->set_addr(master_addr);
+  // bank list
+  Json::Value bank_list_json = root[JSON_BANKS];
+  for (unsigned int i = 0; i < bank_list_json.size(); i++) {
+    Json::Value bank_json = bank_list_json[i];
+    BankServerChain bsc;
+    bsc.set_bank_id(bank_json[JSON_BANKID].asString());
+    Json::Value server_list_json = bank_json[JSON_SERVERS];
+    for (unsigned int j = 0; j < server_list_json.size(); j++) {
+      Json::Value server_json = server_list_json[j];
+      Node node(server_json[JSON_IP].asString(), server_json[JSON_PORT].asInt());
+      bsc.append_node(node);  // add server (only running server in the initialization)
+      if (server_json[JSON_CHAINNO].asInt() == 1)  // it is a header server
+        bsc.set_head(node);
+      if (server_json[JSON_CHAINNO].asInt() == server_list_json.size())  // it is a tail server
+        bsc.set_tail(node);
+    }
+    master->add_bank(bsc.bank_id(), bsc);
+  }
+  // client list
+  Json::Value client_list_json = root[JSON_CLIENTS];
+  for (unsigned int i = 0; i < client_list_json.size(); i++) {
+    Json::Value client_json = client_list_json[i];
+    proto::Address client_addr; 
+    client_addr.set_ip(client_json[JSON_IP].asString());
+    client_addr.set_port(client_json[JSON_PORT].asInt());
+    master->add_client(client_json[JSON_CLIENTID].asString(), client_addr);
+  }
+
+  LOG(INFO) << "Master initialization: " 
+            << "master ip: " << master->addr().ip() << ", "
+	    << "master port: " << master->addr().port() << ", "
+	    << "server report interval: " << check_alive_interval << " sec, "
+            << "server fail timeout: " << crash_timeout << " sec"
+	    << endl << endl;
+
+  return 0;
+}
+
 int main(int argc, char* argv[]) {
   try {
     po::options_description desc("Allowed options");
@@ -99,8 +161,13 @@ int main(int argc, char* argv[]) {
       return 0;
     }
 
+    if (!vm.count("config-file")) {
+        LOG(ERROR) << "Please input the config-file path" << endl << endl;
+        return 1;
+    }	
+
     FLAGS_logtostderr = true;
-    if (vm.count("log-dir") && vm.count("config-file")) {
+    if (vm.count("log-dir")) {
       FLAGS_log_dir = vm["log-dir"].as<string>();
       FLAGS_logtostderr = false;
       FLAGS_logbuflevel = -1;
@@ -115,6 +182,22 @@ int main(int argc, char* argv[]) {
 
     master = std::unique_ptr<Master>(new Master());
 
+    // read configuration file
+    if (read_config_master(vm["config-file"].as<string>()) != 0 )
+      return 1;
+
+    /*
+    MasterTCPLoop tcp_loop(master->addr().port());
+    MasterUDPLoop udp_loop(master->addr().port());
+    std::thread tcp_thread(tcp_loop);
+    std::thread udp_thread(udp_loop);
+    std::thread check_alive_thread(tcp_loop);
+    tcp_thread.join();
+    udp_thread.join();
+    check_alive_thread.join();
+    */
+
+    /*
     // begin test data
     BankServerChain bsc1;
     BankServerChain bsc2;
@@ -143,14 +226,15 @@ int main(int argc, char* argv[]) {
     MasterUDPLoop udp_loop(50000);
     std::thread udp_thread(udp_loop);
 
-    check_alive_interval = 5;
-    crash_timeout = 5;
+    //check_alive_interval = 5;
+    //crash_timeout = 5;
     std::thread check_alive_thread(check_alive);
 
     tcp_thread.join();
     udp_thread.join();
     check_alive_thread.join();
     // end test data
+    */
 
     /* TODO read data from config file
     if (vm.count("config-file")) {

@@ -26,6 +26,10 @@
 #define JSON_BANKS "banks"
 #define JSON_SERVERS "servers"
 #define JSON_CHAINNO "chainno"
+#define JSON_CONFIG "config"
+#define JSON_SERVER_REPORT_INTERVAL "server_report_interval"
+#define JSON_SERVER_FAIL_TIMEOUT "server_fail_timeout"
+#define JSON_MASTER "master"
 
 // global
 extern int send_msg_seq;

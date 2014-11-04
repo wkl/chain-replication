@@ -1,9 +1,9 @@
 {
     "config": {
-        "server_ping_interval": 1,
-        "fail_without_ping": 5,
+        "server_report_interval": 1,
+        "server_fail_timeout": 2,
         "tcp_timeout": 3,
-        "udp_lost_seq": 1
+        "udp_sendlost_seq_interval": 3
     },
     "master": {
         "ip": "127.0.0.1",
@@ -12,7 +12,6 @@
     "banks": [
         {
             "bankid": "bank1",
-            "chainlen": 2,
             "servers": [
                 {
                     "ip": "127.0.0.1",

@@ -419,7 +419,7 @@ int read_config_server(string dir, string bankid, int chainno) {
           cs->set_bank(bank);
           cs->set_ishead(false);
           cs->set_istail(false);
-          if (chainno == 1) {  // check chainno started from 1?
+          if (chainno == 1) {  
             cs->set_ishead(true);
           }
           if (chainno == (int)server_list_json.size()) {
