@@ -9,7 +9,11 @@ int heartbeat_interval;
 
 int read_config_server(string dir, string bankid, int chainno);
 bool get_server_json_with_chainno(Json::Value server_list_json,
+				  Json::Value extend_server_list_json,
                                   Json::Value& result_server_json, int chainno);
+bool get_alive_server_json_with_chainno(Json::Value server_list_json,
+                                  	Json::Value& result_server_json,
+                                  	int chainno);
 
 void ChainServerUDPLoop::handle_msg(proto::Message& msg,
                                     proto::Address& from_addr) {
@@ -399,77 +403,100 @@ int read_config_server(string dir, string bankid, int chainno) {
   Json::Reader reader;
   Json::Value root;
   std::ifstream ifs;
+
   ifs.open(dir, std::ios::binary);
   if (!ifs.is_open()) {
     LOG(ERROR) << "Fail to open the config file: " << dir << endl << endl;
-    exit(1);
+    return 1;
   }
-  if (reader.parse(ifs, root)) {
-    Json::Value bank_list_json = root[JSON_BANKS];
-    for (unsigned int i = 0; i < bank_list_json.size(); i++) {
-      if (bank_list_json[i][JSON_BANKID].asString() == bankid) {
-        Json::Value bank_json = bank_list_json[i];
-        Json::Value server_list_json = bank_json[JSON_SERVERS];
-        Json::Value server_json;
-        bool find_res = get_server_json_with_chainno(server_list_json,
-                                                     server_json, chainno);
-        if (find_res) {
-          cs->set_bank_id(bankid);
-          Bank bank(bankid);
-          cs->set_bank(bank);
-          cs->set_ishead(false);
-          cs->set_istail(false);
-          if (chainno == 1) {  
-            cs->set_ishead(true);
-          }
-          if (chainno == (int)server_list_json.size()) {
-            cs->set_istail(true);
-          }
-          proto::Address local_addr;  // local address
-          local_addr.set_ip(server_json[JSON_IP].asString());
-          local_addr.set_port(server_json[JSON_PORT].asInt());
-          cs->set_local_addr(local_addr);
-          if (!cs->ishead()) {  // pre_server address, check continuous chainno?
-            Json::Value pre_server_json;
-            bool find_res = get_server_json_with_chainno(
-                server_list_json, pre_server_json, chainno - 1);
-            assert(find_res);
-            proto::Address pre_server;
-            pre_server.set_ip(pre_server_json[JSON_IP].asString());
-            pre_server.set_port(pre_server_json[JSON_PORT].asInt());
-            cs->set_pre_server_addr(pre_server);
-          }
-          if (!cs->istail()) {  // succ_server address, check continuous
-                                // chainno?
-            Json::Value succ_server_json;
-            bool find_res = get_server_json_with_chainno(
-                server_list_json, succ_server_json, chainno + 1);
-            assert(find_res);
-            proto::Address succ_server;
-            succ_server.set_ip(succ_server_json[JSON_IP].asString());
-            succ_server.set_port(succ_server_json[JSON_PORT].asInt());
-            cs->set_succ_server_addr(succ_server);
-          }
-          goto READ_FINISH;
-        } else {
-          ifs.close();
-          LOG(ERROR) << "The chainno is not in the config file: " << dir << endl
+
+  if (!reader.parse(ifs, root)) {
+    ifs.close();
+    LOG(ERROR) << "Fail to parse the config file: " << dir << endl << endl;
+    return 1;
+  }
+
+  bool find_bank = false;
+  Json::Value bank_list_json = root[JSON_BANKS];
+  for (unsigned int i = 0; i < bank_list_json.size(); i++) {
+    if (bank_list_json[i][JSON_BANKID].asString() == bankid) {
+      find_bank = true;
+      Json::Value bank_json = bank_list_json[i];
+      Json::Value server_list_json = bank_json[JSON_SERVERS];
+      Json::Value extend_server_list_json = bank_json[JSON_EXTEND_SERVERS];
+      Json::Value server_json;
+      bool find_res = get_server_json_with_chainno(server_list_json,
+						   extend_server_list_json,
+                                                   server_json, chainno);
+      if (!find_res) {
+        ifs.close();
+        LOG(ERROR) << "The chainno is not in the config file: " << dir << endl
                      << endl;
-          exit(1);
-        }
+        return 1;
       }
+      cs->set_bank_id(bankid);
+      Bank bank(bankid);
+      cs->set_bank(bank);
+      cs->set_start_delay(server_json[JSON_START_DEALY].asInt());
+      cs->set_report_interval(root[JSON_CONFIG][JSON_SERVER_REPORT_INTERVAL].asInt());
+      string fail_scenario = server_json[JSON_FAIL_SCENARIO].asString();
+      if (fail_scenario == JSON_NONE)
+        cs->set_fail_scenario(ChainServer::FailScenario::None);
+      else if (fail_scenario == JSON_FAIL_AFTER_SEND)
+        cs->set_fail_scenario(ChainServer::FailScenario::FailAfterSend);
+      else if (fail_scenario == JSON_FAIL_AFTER_RECV)
+        cs->set_fail_scenario(ChainServer::FailScenario::FailAfterRecv); 
+      else if (fail_scenario == JSON_FAIL_AFTER_SEND_IN_EXTEND)
+        cs->set_fail_scenario(ChainServer::FailScenario::FailAfterSendInExtend);
+      else if (fail_scenario == JSON_FAIL_AFTER_RECV_IN_EXTEND)
+        cs->set_fail_scenario(ChainServer::FailScenario::FailAfterRecvInExtend); 
+      if (!server_json.isMember(JSON_FAIL_SEQ))
+        cs->set_fail_seq(0);
+      else
+        cs->set_fail_seq(server_json[JSON_FAIL_SEQ].asInt());
+
+      cs->set_ishead(false);
+      cs->set_istail(false);
+      if (chainno == 1) {  
+        cs->set_ishead(true);
+      }
+      if (chainno == (int)server_list_json.size()) {
+        cs->set_istail(true);
+      }
+      proto::Address local_addr;  // local address
+      local_addr.set_ip(server_json[JSON_IP].asString());
+      local_addr.set_port(server_json[JSON_PORT].asInt());
+      cs->set_local_addr(local_addr);
+      if (!cs->ishead() && cs->start_delay() == 0) {  // for alive server: pre_server address
+        Json::Value pre_server_json;
+        bool find_res = get_alive_server_json_with_chainno(
+             server_list_json, pre_server_json, chainno - 1);
+        assert(find_res);
+        proto::Address pre_server;
+        pre_server.set_ip(pre_server_json[JSON_IP].asString());
+        pre_server.set_port(pre_server_json[JSON_PORT].asInt());
+        cs->set_pre_server_addr(pre_server);
+      }
+      if (!cs->istail() && cs->start_delay() == 0) {  // for alive server: succ_server address
+        Json::Value succ_server_json;
+        bool find_res = get_alive_server_json_with_chainno(
+             server_list_json, succ_server_json, chainno + 1);
+        assert(find_res);
+        proto::Address succ_server;
+        succ_server.set_ip(succ_server_json[JSON_IP].asString());
+        succ_server.set_port(succ_server_json[JSON_PORT].asInt());
+        cs->set_succ_server_addr(succ_server);
+      }
+      break;
     }
+  }
+  if (!find_bank) {
     ifs.close();
     LOG(ERROR) << "The bankid specified is not involved in the config file: "
                << dir << endl << endl;
-    exit(1);
-  } else {
-    ifs.close();
-    LOG(ERROR) << "Fail to parse the config file: " << dir << endl << endl;
-    exit(1);
+    return 1;
   }
 
-READ_FINISH:
   LOG_IF(INFO, (cs->ishead() && !cs->istail()))
       << "New server initialization: bankid=" << cs->bank_id()
       << ", head server"
@@ -504,8 +531,27 @@ READ_FINISH:
 }
 
 bool get_server_json_with_chainno(Json::Value server_list_json,
+				  Json::Value extend_server_list_json,
                                   Json::Value& result_server_json,
                                   int chainno) {
+  for (unsigned int j = 0; j < server_list_json.size(); j++) {
+    if (server_list_json[j][JSON_CHAINNO].asInt() == chainno) {
+      result_server_json = server_list_json[j];
+      return true;
+    }
+  }
+  for (unsigned int j = 0; j < extend_server_list_json.size(); j++) {
+    if (extend_server_list_json[j][JSON_CHAINNO].asInt() == chainno) {
+      result_server_json = extend_server_list_json[j];
+      return true;
+    }
+  }
+  return false;
+}
+
+bool get_alive_server_json_with_chainno(Json::Value server_list_json,
+                                  	Json::Value& result_server_json,
+                                  	int chainno) {
   for (unsigned int j = 0; j < server_list_json.size(); j++) {
     if (server_list_json[j][JSON_CHAINNO].asInt() == chainno) {
       result_server_json = server_list_json[j];
@@ -534,9 +580,14 @@ int main(int argc, char* argv[]) {
       return 0;
     }
 
+    if (!vm.count("config-file") || !vm.count("bank-id") || !vm.count("chain-no")) {
+        LOG(ERROR) << "Please input the config-file path, bankid and the server "
+                    "sequence in the chain" << endl << endl;
+        return 1;
+    }
+
     FLAGS_logtostderr = true;
-    if (vm.count("log-dir") && vm.count("config-file") && vm.count("bank-id") &&
-        vm.count("chain-no")) {
+    if (vm.count("log-dir")) {
       FLAGS_log_dir = vm["log-dir"].as<string>();
       FLAGS_logtostderr = false;
       FLAGS_logbuflevel = -1;
@@ -552,28 +603,26 @@ int main(int argc, char* argv[]) {
 
     cs = std::unique_ptr<ChainServer>(new ChainServer());
 
-    if (vm.count("config-file") && vm.count("bank-id") &&
-        vm.count("chain-no")) {
-      read_config_server(vm["config-file"].as<string>(),
-                         vm["bank-id"].as<string>(), vm["chain-no"].as<int>());
-      ChainServerUDPLoop udp_loop(cs->local_addr().port());
-      ChainServerTCPLoop tcp_loop(cs->local_addr().port());
-      std::thread udp_thread(udp_loop);
-      std::thread tcp_thread(tcp_loop);
-
-      heartbeat_interval = 2;
-      master_addr.set_ip("127.0.0.1");
-      master_addr.set_port(50000);
-      std::thread heartbeat_thread(heartbeat);
-
-      udp_thread.join();
-      tcp_thread.join();
-      heartbeat_thread.join();
-    } else {
-      LOG(ERROR) << "Please input the config-file path, bankid and the server "
-                    "sequence in the chain" << endl << endl;
-      return 1;
+    // read configuration file
+    if (read_config_server(vm["config-file"].as<string>(),
+                           vm["bank-id"].as<string>(), 
+                           vm["chain-no"].as<int>()) != 0) {
+      exit(1);
     }
+
+    ChainServerUDPLoop udp_loop(cs->local_addr().port());
+    ChainServerTCPLoop tcp_loop(cs->local_addr().port());
+    std::thread udp_thread(udp_loop);
+    std::thread tcp_thread(tcp_loop);
+
+    heartbeat_interval = 2;
+    master_addr.set_ip("127.0.0.1");
+    master_addr.set_port(50000);
+    std::thread heartbeat_thread(heartbeat);
+
+    udp_thread.join();
+    tcp_thread.join();
+    heartbeat_thread.join();
 
   } catch (std::exception& e) {
     LOG(ERROR) << "error: " << e.what() << endl << endl;

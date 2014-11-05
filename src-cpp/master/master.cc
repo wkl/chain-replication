@@ -87,16 +87,19 @@ int read_config_master(string dir) {
   Json::Reader reader;
   Json::Value root;
   std::ifstream ifs;
+
   ifs.open(dir, std::ios::binary);
   if (!ifs.is_open()) {
     LOG(ERROR) << "Fail to open the config file: " << dir << endl << endl;
     return 1;
   }
+
   if (!reader.parse(ifs, root)) {
     ifs.close();
     LOG(ERROR) << "Fail to parse the config file: " << dir << endl << endl;
     return 1;
   }
+
   Json::Value config_json = root[JSON_CONFIG];
   // config info
   check_alive_interval = config_json[JSON_SERVER_REPORT_INTERVAL].asInt();  

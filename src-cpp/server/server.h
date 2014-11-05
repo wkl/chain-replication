@@ -29,6 +29,7 @@ using std::cerr;
 class ChainServer {
  public:
   enum class UpdateBalanceOutcome { Success, InsufficientFunds };
+  enum class FailScenario {None, FailAfterSend, FailAfterRecv, FailAfterSendInExtend, FailAfterRecvInExtend};
 
   ChainServer() { bank_update_seq_ = 0; };
   ChainServer(string bank_id) : bank_id_(bank_id) { bank_update_seq_ = 0; }
@@ -75,13 +76,28 @@ class ChainServer {
   proto::Address& succ_server_addr() { return succ_server_addr_; };
   void set_local_addr(proto::Address local_addr) { local_addr_ = local_addr; };
   proto::Address& local_addr() { return local_addr_; };
+  void set_start_delay(int start_delay) { start_delay_ = start_delay; };
+  int start_delay() { return start_delay_; };
+  void set_report_interval(int report_interval) { report_interval_ = report_interval; };
+  int report_interval() { return report_interval_; };
+  void set_tcp_timeout(int tcp_timeout) { tcp_timeout_ = tcp_timeout; };
+  int tcp_timeout() { return tcp_timeout_; };
+  void set_fail_scenario(FailScenario fail_scenario) { fail_scenario_ = fail_scenario; };
+  FailScenario fail_scenario() { return fail_scenario_; };
+  void set_fail_seq(int fail_seq) { fail_seq_ = fail_seq; };
+  int fail_seq() { return fail_seq_; };
 
  private:
   string bank_id_;
   Bank bank_;
   bool ishead_;
   bool istail_;
-  // bool extending_chain_;
+  //bool extending_chain_;
+  int start_delay_;  // in sec
+  int report_interval_;  // in sec
+  int tcp_timeout_;	// in sec
+  FailScenario fail_scenario_;
+  int fail_seq_;
   // <"reqid_accountid", request>
   unordered_map<string, proto::Request> processed_map_;
   deque<proto::Request> sent_list_;

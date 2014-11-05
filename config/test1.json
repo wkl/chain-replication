@@ -3,7 +3,7 @@
         "server_report_interval": 1,
         "server_fail_timeout": 2,
         "tcp_timeout": 3,
-        "udp_sendlost_seq_interval": 3
+        "udp_lostseq_interval": 3
     },
     "master": {
         "ip": "127.0.0.1",
@@ -18,7 +18,7 @@
                     "port": 50001,
                     "chainno": 1,
                     "startdelay": 0,
-                    "failscenario": "fail_after_recv",
+                    "failscenario": "fail_after_send",
                     "failseq": "2"
                 },
                 {
@@ -45,21 +45,35 @@
                     "accountid": "account1",
                     "seq": 1,
                     "type": "DEPOSIT",
-                    "amount": 100
+                    "amount": 1000
                 },
                 {
                     "bankid": "bank1",
                     "accountid": "account1",
                     "seq": 2,
                     "type": "WITHDRAW",
-                    "amount": 50
+                    "amount": 100
                 },
                 {
                     "bankid": "bank1",
                     "accountid": "account1",
                     "seq": 3,
-                    "type": "DEPOSIT",
-                    "amount": 150
+                    "type": "WITHDRAW",
+                    "amount": 200
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "seq": 4,
+                    "type": "WITHDRAW",
+                    "amount": 300
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "seq": 5,
+                    "type": "WITHDRAW",
+                    "amount": 400
                 }
             ]
         }

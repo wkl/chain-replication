@@ -30,6 +30,16 @@
 #define JSON_SERVER_REPORT_INTERVAL "server_report_interval"
 #define JSON_SERVER_FAIL_TIMEOUT "server_fail_timeout"
 #define JSON_MASTER "master"
+#define JSON_EXTEND_SERVERS "extend_servers"
+#define JSON_START_DEALY "startdelay"
+#define JSON_FAIL_SCENARIO "failscenario"
+#define JSON_FAIL_SEQ "failseq"
+#define JSON_NONE "none"
+#define JSON_FAIL_AFTER_SEND "fail_after_send"
+#define JSON_FAIL_AFTER_RECV "fail_after_recv"
+#define JSON_FAIL_AFTER_SEND_IN_EXTEND "fail_after_send_in_extend"
+#define JSON_FAIL_AFTER_RECV_IN_EXTEND "fail_after_recv_in_extend"
+#define JSON_FAIL_SEQ "failseq"
 
 // global
 extern int send_msg_seq;

@@ -3,3 +3,9 @@ original chain length is 2, header fails
 
 test2:
 original chain length is 3, header fails
+
+test3:
+origianl chain length is 1, extending chain
+
+test4:
+origianl chain length is 2, extending chain
