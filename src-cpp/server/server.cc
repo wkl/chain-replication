@@ -616,7 +616,7 @@ int main(int argc, char* argv[]) {
       exit(1);
     }
 
-    /*
+    
     ChainServerUDPLoop udp_loop(cs->local_addr().port());
     ChainServerTCPLoop tcp_loop(cs->local_addr().port());
     std::thread udp_thread(udp_loop);
@@ -625,12 +625,12 @@ int main(int argc, char* argv[]) {
     //heartbeat_interval = 2;
     //master_addr.set_ip("127.0.0.1");
     //master_addr.set_port(50000);
-    std::thread heartbeat_thread(heartbeat);
+    //std::thread heartbeat_thread(heartbeat);
 
     udp_thread.join();
     tcp_thread.join();
-    heartbeat_thread.join();
-    */
+    //heartbeat_thread.join();
+    
 
   } catch (std::exception& e) {
     LOG(ERROR) << "error: " << e.what() << endl << endl;

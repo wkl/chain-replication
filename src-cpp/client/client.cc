@@ -61,7 +61,7 @@ void Client::run() {
           }
           if (send_count > 0) {
             LOG(INFO) << clientid_ << ": retrying (" << send_count << " of "
-                      << resend_num_ << ")" << endl;
+                      << resend_num_ << ")" << endl << endl;
           }
 
           send_msg_udp(*local_addr, target, proto::Message::REQUEST, req);
