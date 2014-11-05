@@ -55,6 +55,18 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg,
     case proto::Message::TO_BE_TAIL:
       // cs->to_be_head();
       break;
+    case proto::Message::NEW_SUCC_SERVER:
+      assert(msg.has_addr());
+      // cs->to_be_head();
+      break;
+    case proto::Message::NEW_PRE_SERVER:
+      assert(msg.has_addr());
+      // cs->to_be_head();
+      break;
+    case proto::Message::NEW_TAIL_READY:
+      assert(msg.has_addr());
+      // cs->to_be_head();
+      break;
     default:
       LOG(ERROR) << "no handler for message type (" << msg.type() << ")" << endl
                  << endl;
@@ -624,11 +636,11 @@ int main(int argc, char* argv[]) {
     std::thread udp_thread(udp_loop);
     std::thread tcp_thread(tcp_loop);
 
-    //std::thread heartbeat_thread(heartbeat);
+    std::thread heartbeat_thread(heartbeat);
 
     udp_thread.join();
     tcp_thread.join();
-    //heartbeat_thread.join();
+    heartbeat_thread.join();
 
   } catch (std::exception& e) {
     LOG(ERROR) << "error: " << e.what() << endl << endl;

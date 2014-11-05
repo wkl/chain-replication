@@ -82,6 +82,10 @@ void notify_crash(BankServerChain& bsc, Node& node) {
                  empty_msg);
     bsc.remove_node(node);
   } else if (node != bsc.head() && node != bsc.tail()) {  // internal crashed
+    send_msg_tcp(bsc.pre_server_addr(node), proto::Message::NEW_SUCC_SERVER,
+                 bsc.succ_server_addr(node));
+    send_msg_tcp(bsc.succ_server_addr(node), proto::Message::NEW_PRE_SERVER,
+                 bsc.pre_server_addr(node));
     bsc.remove_node(node);
   } else {
     assert(0);
@@ -157,10 +161,9 @@ int read_config_master(string dir) {
     master->add_client(client_json[JSON_CLIENTID].asString(), client_addr);
   }
 
-  LOG(INFO) << "Master initialization: " 
+  LOG(INFO) << "Master initialization: "
             << "master ip: " << master->addr().ip() << ", "
-	    << "master port: " << master->addr().port()
-	    << endl << endl;
+            << "master port: " << master->addr().port() << endl << endl;
 
   return 0;
 }
@@ -210,7 +213,7 @@ int main(int argc, char* argv[]) {
     MasterUDPLoop udp_loop(master->addr().port());
     std::thread tcp_thread(tcp_loop);
     std::thread udp_thread(udp_loop);
-    std::thread check_alive_thread(tcp_loop);
+    std::thread check_alive_thread(check_alive);
     tcp_thread.join();
     udp_thread.join();
     check_alive_thread.join();
@@ -246,7 +249,7 @@ int main(int argc, char* argv[]) {
       MasterUDPLoop udp_loop(master->addr().port());
       std::thread tcp_thread(tcp_loop);
       std::thread udp_thread(udp_loop);
-      std::thread check_alive_thread(tcp_loop);
+      std::thread check_alive_thread(check_alive);
       tcp_thread.join();
       udp_thread.join();
       check_alive_thread.join();

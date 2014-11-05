@@ -172,6 +172,14 @@ void prepare_msg(proto::Message &msg,
     case proto::Message::TO_BE_TAIL: {
       break;
     }
+    case proto::Message::NEW_PRE_SERVER:
+    case proto::Message::NEW_SUCC_SERVER:
+    case proto::Message::NEW_TAIL_READY: {
+      auto *tmp = new proto::Address();
+      tmp->CopyFrom(sub_msg);
+      msg.set_allocated_addr(tmp);
+      break;
+    }
     default:
       LOG(ERROR) << "Unknown msg type";
       assert(0);  // should not reach here
