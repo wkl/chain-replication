@@ -55,6 +55,18 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg,
     case proto::Message::TO_BE_TAIL:
       // cs->to_be_head();
       break;
+    case proto::Message::NEW_SUCC_SERVER:
+      assert(msg.has_addr());
+      // cs->to_be_head();
+      break;
+    case proto::Message::NEW_PRE_SERVER:
+      assert(msg.has_addr());
+      // cs->to_be_head();
+      break;
+    case proto::Message::NEW_TAIL_READY:
+      assert(msg.has_addr());
+      // cs->to_be_head();
+      break;
     default:
       LOG(ERROR) << "no handler for message type (" << msg.type() << ")" << endl
                  << endl;

@@ -9,12 +9,16 @@ message Message {
 		HEARTBEAT = 3;
 		TO_BE_HEAD = 4;
 		TO_BE_TAIL = 5;
+		NEW_SUCC_SERVER = 6;
+		NEW_PRE_SERVER = 7;
+		NEW_TAIL_READY = 8;
 	}
 	required MessageType type = 1;
 	optional Request request = 2;
 	optional Reply reply = 3;
 	optional Acknowledge ack = 4;
 	optional Heartbeat heartbeat = 5;
+	optional Address addr = 6;
 }
 
 message Address {
