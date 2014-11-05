@@ -140,9 +140,7 @@ int read_config_master(string dir) {
 
   LOG(INFO) << "Master initialization: " 
             << "master ip: " << master->addr().ip() << ", "
-	    << "master port: " << master->addr().port() << ", "
-	    << "server report interval: " << check_alive_interval << " sec, "
-            << "server fail timeout: " << crash_timeout << " sec"
+	    << "master port: " << master->addr().port()
 	    << endl << endl;
 
   return 0;

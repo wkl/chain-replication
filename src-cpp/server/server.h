@@ -78,10 +78,6 @@ class ChainServer {
   proto::Address& local_addr() { return local_addr_; };
   void set_start_delay(int start_delay) { start_delay_ = start_delay; };
   int start_delay() { return start_delay_; };
-  void set_report_interval(int report_interval) { report_interval_ = report_interval; };
-  int report_interval() { return report_interval_; };
-  void set_tcp_timeout(int tcp_timeout) { tcp_timeout_ = tcp_timeout; };
-  int tcp_timeout() { return tcp_timeout_; };
   void set_fail_scenario(FailScenario fail_scenario) { fail_scenario_ = fail_scenario; };
   FailScenario fail_scenario() { return fail_scenario_; };
   void set_fail_seq(int fail_seq) { fail_seq_ = fail_seq; };
@@ -94,8 +90,6 @@ class ChainServer {
   bool istail_;
   //bool extending_chain_;
   int start_delay_;  // in sec
-  int report_interval_;  // in sec
-  int tcp_timeout_;	// in sec
   FailScenario fail_scenario_;
   int fail_seq_;
   // <"reqid_accountid", request>

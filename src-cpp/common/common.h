@@ -40,6 +40,7 @@
 #define JSON_FAIL_AFTER_SEND_IN_EXTEND "fail_after_send_in_extend"
 #define JSON_FAIL_AFTER_RECV_IN_EXTEND "fail_after_recv_in_extend"
 #define JSON_FAIL_SEQ "failseq"
+#define JSON_TCP_TIMEOUT "tcp_timeout"
 
 // global
 extern int send_msg_seq;

@@ -5,7 +5,8 @@ namespace po = boost::program_options;
 
 std::unique_ptr<ChainServer> cs;
 proto::Address master_addr;
-int heartbeat_interval;
+int heartbeat_interval;	// in sec
+int tcp_timeout;  // in sec
 
 int read_config_server(string dir, string bankid, int chainno);
 bool get_server_json_with_chainno(Json::Value server_list_json,
@@ -438,7 +439,8 @@ int read_config_server(string dir, string bankid, int chainno) {
       Bank bank(bankid);
       cs->set_bank(bank);
       cs->set_start_delay(server_json[JSON_START_DEALY].asInt());
-      cs->set_report_interval(root[JSON_CONFIG][JSON_SERVER_REPORT_INTERVAL].asInt());
+      heartbeat_interval = root[JSON_CONFIG][JSON_SERVER_REPORT_INTERVAL].asInt();
+      tcp_timeout = root[JSON_CONFIG][JSON_TCP_TIMEOUT].asInt();
       string fail_scenario = server_json[JSON_FAIL_SCENARIO].asString();
       if (fail_scenario == JSON_NONE)
         cs->set_fail_scenario(ChainServer::FailScenario::None);
@@ -454,6 +456,8 @@ int read_config_server(string dir, string bankid, int chainno) {
         cs->set_fail_seq(0);
       else
         cs->set_fail_seq(server_json[JSON_FAIL_SEQ].asInt());
+      master_addr.set_ip(root[JSON_MASTER][JSON_IP].asString());
+      master_addr.set_port(root[JSON_MASTER][JSON_PORT].asInt());
 
       cs->set_ishead(false);
       cs->set_istail(false);
@@ -610,19 +614,21 @@ int main(int argc, char* argv[]) {
       exit(1);
     }
 
+    /*
     ChainServerUDPLoop udp_loop(cs->local_addr().port());
     ChainServerTCPLoop tcp_loop(cs->local_addr().port());
     std::thread udp_thread(udp_loop);
     std::thread tcp_thread(tcp_loop);
 
-    heartbeat_interval = 2;
-    master_addr.set_ip("127.0.0.1");
-    master_addr.set_port(50000);
+    //heartbeat_interval = 2;
+    //master_addr.set_ip("127.0.0.1");
+    //master_addr.set_port(50000);
     std::thread heartbeat_thread(heartbeat);
 
     udp_thread.join();
     tcp_thread.join();
     heartbeat_thread.join();
+    */
 
   } catch (std::exception& e) {
     LOG(ERROR) << "error: " << e.what() << endl << endl;
