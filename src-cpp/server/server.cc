@@ -10,7 +10,7 @@ int tcp_timeout;  // in sec
 
 int read_config_server(string dir, string bankid, int chainno);
 bool get_server_json_with_chainno(Json::Value server_list_json,
-				  Json::Value extend_server_list_json,
+                                  Json::Value extend_server_list_json,
                                   Json::Value& result_server_json, int chainno);
 bool get_alive_server_json_with_chainno(Json::Value server_list_json,
                                   	Json::Value& result_server_json,
@@ -37,20 +37,23 @@ void ChainServerUDPLoop::handle_msg(proto::Message& msg,
 void ChainServerTCPLoop::handle_msg(proto::Message& msg,
                                     proto::Address& from_addr) {
   rec_msg_seq++;
+  LOG(INFO) << "Server received tcp message from " << from_addr.ip() << ":"
+            << from_addr.port() << ", recv_req_seq = " << rec_msg_seq << endl
+            << msg.ShortDebugString() << endl << endl;
   switch (msg.type()) {
     case proto::Message::REQUEST:
       assert(msg.has_request());
-      LOG(INFO) << "Server received tcp message from " << from_addr.ip() << ":"
-                << from_addr.port() << ", recv_req_seq = " << rec_msg_seq
-                << endl << msg.ShortDebugString() << endl << endl;
       cs->receive_request(msg.mutable_request());
       break;
     case proto::Message::ACKNOWLEDGE:
       assert(msg.has_ack());
-      LOG(INFO) << "Server received tcp message from " << from_addr.ip() << ":"
-                << from_addr.port() << ", recv_req_seq = " << rec_msg_seq
-                << endl << msg.ShortDebugString() << endl << endl;
       cs->receive_ack(msg.mutable_ack());
+      break;
+    case proto::Message::TO_BE_HEAD:
+      // cs->to_be_head();
+      break;
+    case proto::Message::TO_BE_TAIL:
+      // cs->to_be_head();
       break;
     default:
       LOG(ERROR) << "no handler for message type (" << msg.type() << ")" << endl
@@ -616,21 +619,16 @@ int main(int argc, char* argv[]) {
       exit(1);
     }
 
-    /*
     ChainServerUDPLoop udp_loop(cs->local_addr().port());
     ChainServerTCPLoop tcp_loop(cs->local_addr().port());
     std::thread udp_thread(udp_loop);
     std::thread tcp_thread(tcp_loop);
 
-    //heartbeat_interval = 2;
-    //master_addr.set_ip("127.0.0.1");
-    //master_addr.set_port(50000);
     std::thread heartbeat_thread(heartbeat);
 
     udp_thread.join();
     tcp_thread.join();
     heartbeat_thread.join();
-    */
 
   } catch (std::exception& e) {
     LOG(ERROR) << "error: " << e.what() << endl << endl;

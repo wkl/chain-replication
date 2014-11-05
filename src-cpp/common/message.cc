@@ -166,6 +166,12 @@ void prepare_msg(proto::Message &msg,
       msg.set_allocated_heartbeat(tmp);
       break;
     }
+    case proto::Message::TO_BE_HEAD: {
+      break;
+    }
+    case proto::Message::TO_BE_TAIL: {
+      break;
+    }
     default:
       LOG(ERROR) << "Unknown msg type";
       assert(0);  // should not reach here

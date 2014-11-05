@@ -7,6 +7,8 @@ message Message {
 		REPLY = 1;
 		ACKNOWLEDGE = 2;
 		HEARTBEAT = 3;
+		TO_BE_HEAD = 4;
+		TO_BE_TAIL = 5;
 	}
 	required MessageType type = 1;
 	optional Request request = 2;
