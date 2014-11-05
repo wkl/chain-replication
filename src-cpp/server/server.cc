@@ -624,11 +624,11 @@ int main(int argc, char* argv[]) {
     std::thread udp_thread(udp_loop);
     std::thread tcp_thread(tcp_loop);
 
-    //std::thread heartbeat_thread(heartbeat);
+    std::thread heartbeat_thread(heartbeat);
 
     udp_thread.join();
     tcp_thread.join();
-    //heartbeat_thread.join();
+    heartbeat_thread.join();
 
   } catch (std::exception& e) {
     LOG(ERROR) << "error: " << e.what() << endl << endl;

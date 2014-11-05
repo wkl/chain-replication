@@ -27,6 +27,9 @@ void Client::run() {
 
   try {
     for (auto req : request_vector_) {
+      // have a sleep
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+      
       // client address
       proto::Address* local_addr = new proto::Address;
       local_addr->set_ip(ip_);
@@ -81,7 +84,6 @@ void Client::run() {
           should_send_request = true;
           continue;
         }
-        recv_count_ ++;
 
         proto::Message msg;
         assert(decode_msg(msg, data, length));
@@ -89,6 +91,7 @@ void Client::run() {
         // drop packet on purpose
         bool drop_this_reply = drop_reply();
         if (msg.type() == proto::Message::REPLY) {
+          recv_count_ ++;
           // might receive previous timeout reply
           if (msg.reply().req_id() == req.req_id() && drop_this_reply) {
             // have a sleep

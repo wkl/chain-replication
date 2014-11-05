@@ -205,26 +205,27 @@ int main(int argc, char* argv[]) {
     // read configuration file
     if (read_config_master(vm["config-file"].as<string>()) != 0 )
       return 1;
-
+    
     MasterTCPLoop tcp_loop(master->addr().port());
-    MasterUDPLoop udp_loop(master->addr().port());
     std::thread tcp_thread(tcp_loop);
+    MasterUDPLoop udp_loop(master->addr().port());
     std::thread udp_thread(udp_loop);
-    std::thread check_alive_thread(tcp_loop);
+    std::thread check_alive_thread(check_alive);
     tcp_thread.join();
     udp_thread.join();
     check_alive_thread.join();
-
-    /*
+    
+    
     // begin test data
+    /*
     BankServerChain bsc1;
     Node node1("127.0.0.1", 50001);
     Node node2("127.0.0.1", 50002);
     bsc1.append_node(node1).append_node(node2);
     bsc1.set_head(node1);
     bsc1.set_tail(node2);
-    master->add_bank("bank1", bsc1);
-
+    master->add_bank("bank1", bsc1);*/
+    /*
     MasterTCPLoop tcp_loop(50000);
     std::thread tcp_thread(tcp_loop);
     MasterUDPLoop udp_loop(50000);
@@ -238,22 +239,6 @@ int main(int argc, char* argv[]) {
     udp_thread.join();
     check_alive_thread.join();
     // end test data
-    */
-
-    /* TODO read data from config file
-    if (vm.count("config-file")) {
-      MasterTCPLoop tcp_loop(master->addr().port());
-      MasterUDPLoop udp_loop(master->addr().port());
-      std::thread tcp_thread(tcp_loop);
-      std::thread udp_thread(udp_loop);
-      std::thread check_alive_thread(tcp_loop);
-      tcp_thread.join();
-      udp_thread.join();
-      check_alive_thread.join();
-    } else {
-      LOG(ERROR) << "Please input the config-file path" << endl << endl;
-      return 1;
-    }
     */
 
   } catch (std::exception& e) {
