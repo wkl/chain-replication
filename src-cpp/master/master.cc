@@ -70,15 +70,34 @@ bool Node::become_crashed() {
   return crashed_;
 }
 
+void notify_crash(BankServerChain& bsc, Node& node) {
+  if (node == bsc.head() && node != bsc.tail()) {         // head crashed
+    proto::Message empty_msg;
+    send_msg_tcp(bsc.succ_server_addr(node), proto::Message::TO_BE_HEAD,
+                 empty_msg);
+    bsc.remove_node(node);
+  } else if (node != bsc.head() && node == bsc.tail()) {  // tail crashed
+    proto::Message empty_msg;
+    send_msg_tcp(bsc.pre_server_addr(node), proto::Message::TO_BE_TAIL,
+                 empty_msg);
+    bsc.remove_node(node);
+  } else if (node != bsc.head() && node != bsc.tail()) {  // internal crashed
+    bsc.remove_node(node);
+  } else {
+    assert(0);
+  }
+}
+
 void check_alive() {
   while (true) {
     std::this_thread::sleep_for(std::chrono::seconds(check_alive_interval));
-    for (auto &bsc : master->bank_server_chain())
-      for (auto &node : bsc.second.server_chain())
+    for (auto& bsc : master->bank_server_chain())
+      for (auto& node : bsc.second.server_chain())
         if (!node.is_crashed() && node.become_crashed()) {
-          // TODO notify
           LOG(INFO) << bsc.first << " " << node.addr().ShortDebugString()
                     << " become crashed!" << endl;
+          notify_crash(bsc.second, node);
+          return;
         }
   }
 }
@@ -187,7 +206,6 @@ int main(int argc, char* argv[]) {
     if (read_config_master(vm["config-file"].as<string>()) != 0 )
       return 1;
 
-    /*
     MasterTCPLoop tcp_loop(master->addr().port());
     MasterUDPLoop udp_loop(master->addr().port());
     std::thread tcp_thread(tcp_loop);
@@ -196,39 +214,24 @@ int main(int argc, char* argv[]) {
     tcp_thread.join();
     udp_thread.join();
     check_alive_thread.join();
-    */
 
     /*
     // begin test data
     BankServerChain bsc1;
-    BankServerChain bsc2;
-    BankServerChain bsc3;
     Node node1("127.0.0.1", 50001);
-    bsc1.append_node(node1);
-    bsc1.set_head(node1);
-    bsc1.set_tail(node1);
     Node node2("127.0.0.1", 50002);
-    Node node3("127.0.0.1", 50003);
-    bsc2.append_node(node2).append_node(node3);
-    bsc2.set_head(node2);
-    bsc2.set_tail(node3);
-    Node node4("127.0.0.1", 50004);
-    Node node5("127.0.0.1", 50005);
-    Node node6("127.0.0.1", 50006);
-    bsc3.append_node(node4).append_node(node5).append_node(node6);
-    bsc3.set_head(node4);
-    bsc3.set_tail(node6);
+    bsc1.append_node(node1).append_node(node2);
+    bsc1.set_head(node1);
+    bsc1.set_tail(node2);
     master->add_bank("bank1", bsc1);
-    master->add_bank("bank2", bsc2);
-    master->add_bank("bank3", bsc3);
 
     MasterTCPLoop tcp_loop(50000);
     std::thread tcp_thread(tcp_loop);
     MasterUDPLoop udp_loop(50000);
     std::thread udp_thread(udp_loop);
 
-    //check_alive_interval = 5;
-    //crash_timeout = 5;
+    check_alive_interval = 5;
+    crash_timeout = 5;
     std::thread check_alive_thread(check_alive);
 
     tcp_thread.join();

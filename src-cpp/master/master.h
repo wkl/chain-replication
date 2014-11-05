@@ -40,6 +40,12 @@ class Node {
   bool operator==(const proto::Address& addr) {
     return addr_.ip() == addr.ip() && addr_.port() == addr.port();
   }
+  bool operator!=(const proto::Address& addr) {
+    return !(*this == addr);
+  }
+  bool operator!=(Node& node) {
+    return !(*this == node.addr());
+  }
   void set_report_time() {
     last_report_time_ = steady_clock::now();
     reported_ = true;
@@ -58,20 +64,53 @@ class Node {
 class BankServerChain {
  public:
   BankServerChain(){};
+
   BankServerChain& append_node(Node node) {
     server_chain_.push_back(node);
     return *this;
   }
+
+  void remove_node(Node node) {
+    auto it = server_chain_.begin();
+    while (*it != node && it != server_chain_.end()) {
+      ++it;
+    }
+    assert(it != server_chain_.end()); // assert node is in chain
+    server_chain_.erase(it);
+  }
+
   void set_head(Node node) { head_.CopyFrom(node.addr()); }
   void set_head(string ip, int port) {
     head_.set_ip(ip);
     head_.set_port(port);
   };
+
   void set_tail(Node node) { tail_.CopyFrom(node.addr()); }
   void set_tail(string ip, int port) {
     tail_.set_ip(ip);
     tail_.set_port(port);
   };
+
+  proto::Address succ_server_addr(Node& node) {
+    assert(node != tail_);
+    auto it = server_chain_.begin();
+    while (*it != node && it != server_chain_.end()) {
+      ++it;
+    }
+    assert(it != server_chain_.end()); // assert node is in chain
+    return (++it)->addr();
+  }
+
+  proto::Address pre_server_addr(Node& node) {
+    assert(node != head_);
+    auto it = server_chain_.begin();
+    while (*it != node && it != server_chain_.end()) {
+      ++it;
+    }
+    assert(it != server_chain_.end()); // assert node is in chain
+    return (--it)->addr();
+  }
+
   proto::Address& head() { return head_; };
   proto::Address& tail() { return tail_; };
 
