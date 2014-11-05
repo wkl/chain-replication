@@ -452,6 +452,8 @@ int read_config_server(string dir, string bankid, int chainno) {
         cs->set_fail_scenario(ChainServer::FailScenario::FailAfterSendInExtend);
       else if (fail_scenario == JSON_FAIL_AFTER_RECV_IN_EXTEND)
         cs->set_fail_scenario(ChainServer::FailScenario::FailAfterRecvInExtend); 
+      else if (fail_scenario == JSON_FAIL_AFTER_INTERVAL_FAIL)
+        cs->set_fail_scenario(ChainServer::FailScenario::FailAfterIntervalFail);
       if (!server_json.isMember(JSON_FAIL_SEQ))
         cs->set_fail_seq(0);
       else

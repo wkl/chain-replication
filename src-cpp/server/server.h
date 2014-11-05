@@ -29,7 +29,8 @@ using std::cerr;
 class ChainServer {
  public:
   enum class UpdateBalanceOutcome { Success, InsufficientFunds };
-  enum class FailScenario {None, FailAfterSend, FailAfterRecv, FailAfterSendInExtend, FailAfterRecvInExtend};
+  enum class FailScenario {None, FailAfterSend, FailAfterRecv, FailAfterSendInExtend, FailAfterRecvInExtend, FailAfterIntervalFail};
+  
 
   ChainServer() { bank_update_seq_ = 0; };
   ChainServer(string bank_id) : bank_id_(bank_id) { bank_update_seq_ = 0; }

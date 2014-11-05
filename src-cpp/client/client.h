@@ -47,8 +47,12 @@ class Client {
   int wait_timeout() { return wait_timeout_; };
   void set_resend_num(int resend_num) { resend_num_ = resend_num; };
   int resend_num() { return resend_num_; };
-  void set_if_resend(bool if_resend) { if_resend_ = if_resend; };
-  bool if_resend() { return if_resend_; };
+  void set_resend_newhead(bool resend_newhead) { resend_newhead_ = resend_newhead; };
+  bool resend_newhead() { return resend_newhead_; };
+  void set_drop_interval(int drop_interval) { drop_interval_ = drop_interval; };
+  int drop_interval() { return drop_interval_; };
+  void set_recv_count(int recv_count) { recv_count_ = recv_count; };
+  int recv_count() { return recv_count_; };
 
   void set_request_vector(vector<proto::Request> request_vector) {
     request_vector_ = request_vector;
@@ -86,6 +90,17 @@ class Client {
       assert(it_tail != bank_tail_list_.end());
       return it_tail->second;
   }
+  
+  bool drop_reply() {
+    if (drop_interval_ == 0)
+      return false;
+    else {
+      if (recv_count_ % drop_interval_ == 0)
+        return true;
+      else 
+        return false;
+    }
+  }
 
  private:
   string ip_;
@@ -93,7 +108,9 @@ class Client {
   string clientid_;
   int wait_timeout_;
   int resend_num_;
-  bool if_resend_;
+  bool resend_newhead_;
+  int drop_interval_; // in seq
+  int recv_count_;  
   unordered_map<string, proto::Address> bank_head_list_;  // <bankid, headaddr>
   unordered_map<string, proto::Address> bank_tail_list_;  // <bankid, tailaddr>
   vector<proto::Request> request_vector_;

@@ -12,7 +12,7 @@
 #define JSON_CLIENTID "clientid"
 #define JSON_WAIT_TIMEOUT "waittimeout"
 #define JSON_RESEND_NUM "resendnum"
-#define JSON_IF_RESEND "ifresend"
+#define JSON_RESEND_NEWHEAD "resend_newhead"
 #define JSON_REQUESTS "requests"
 #define JSON_QUERY "QUERY"
 #define JSON_DEPOSIT "DEPOSIT"
@@ -39,8 +39,19 @@
 #define JSON_FAIL_AFTER_RECV "fail_after_recv"
 #define JSON_FAIL_AFTER_SEND_IN_EXTEND "fail_after_send_in_extend"
 #define JSON_FAIL_AFTER_RECV_IN_EXTEND "fail_after_recv_in_extend"
+#define JSON_FAIL_AFTER_INTERVAL_FAIL "fail_after_interval_fail"
 #define JSON_FAIL_SEQ "failseq"
 #define JSON_TCP_TIMEOUT "tcp_timeout"
+#define JSON_REQSEED "reqseed"
+#define JSON_RANDOM "random"
+#define JSON_UDP_DROP_INTERVAL "udp_drop_interval"
+#define JSON_REQNUM "reqnum"
+#define JSON_ACCOUNTNUM "accountnum"
+#define JSON_MAXACCOUNT "maxamount"
+#define JSON_PROBQUERY "probquery"
+#define JSON_PROBDEPOSIT "probdeposit"
+#define JSON_PROBWITHDRAW "probwithdraw"
+
 
 // global
 extern int send_msg_seq;

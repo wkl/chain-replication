@@ -3,7 +3,7 @@
         "server_report_interval": 1,
         "server_fail_timeout": 2,
         "tcp_timeout": 1,
-	"udp_lostseq_interval": "3"
+	      "udp_lostseq_interval": "3"
     },
     "master": {
         "ip": "127.0.0.1",
@@ -45,7 +45,7 @@
             "port": 60001,
             "waittimeout": 5,
             "resendnum": 3,
-            "ifresend": true,
+            "resend_newhead": true,
             "requests": [
                 {
                     "bankid": "bank1",
