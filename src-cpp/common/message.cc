@@ -169,6 +169,12 @@ void prepare_msg(proto::Message &msg,
     case proto::Message::TO_BE_HEAD: {
       break;
     }
+    case proto::Message::NEW_HEAD: {
+      auto *tmp = new proto::Notify();
+      tmp->CopyFrom(sub_msg);
+      msg.set_allocated_notify(tmp);
+      break;
+    }
     case proto::Message::TO_BE_TAIL: {
       break;
     }

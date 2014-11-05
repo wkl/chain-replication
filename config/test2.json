@@ -1,9 +1,9 @@
 {
     "config": {
         "server_report_interval": 1,
-        "server_fail_timeout": 2,
+        "server_fail_timeout": 3,
         "tcp_timeout": 1,
-	      "udp_lostseq_interval": "3"
+	      "udp_drop_interval": "0"
     },
     "master": {
         "ip": "127.0.0.1",
@@ -43,7 +43,7 @@
             "clientid": "client1",
             "ip": "127.0.0.1",
             "port": 60001,
-            "waittimeout": 5,
+            "waittimeout": 2,
             "resendnum": 3,
             "resend_newhead": true,
             "requests": [

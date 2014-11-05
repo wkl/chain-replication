@@ -8,14 +8,6 @@ proto::Address master_addr;
 int heartbeat_interval;	// in sec
 int tcp_timeout;  // in sec
 
-int read_config_server(string dir, string bankid, int chainno);
-bool get_server_json_with_chainno(Json::Value server_list_json,
-                                  Json::Value extend_server_list_json,
-                                  Json::Value& result_server_json, int chainno);
-bool get_alive_server_json_with_chainno(Json::Value server_list_json,
-                                  	Json::Value& result_server_json,
-                                  	int chainno);
-
 void ChainServerUDPLoop::handle_msg(proto::Message& msg,
                                     proto::Address& from_addr) {
   rec_msg_seq++;
@@ -25,6 +17,7 @@ void ChainServerUDPLoop::handle_msg(proto::Message& msg,
       LOG(INFO) << "Server received udp message from " << from_addr.ip() << ":"
                 << from_addr.port() << ", recv_req_seq = " << rec_msg_seq
                 << endl << msg.ShortDebugString() << endl << endl;
+      cs->if_server_crash();
       cs->receive_request(msg.mutable_request());
       break;
     default:
@@ -40,6 +33,7 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg,
   LOG(INFO) << "Server received tcp message from " << from_addr.ip() << ":"
             << from_addr.port() << ", recv_req_seq = " << rec_msg_seq << endl
             << msg.ShortDebugString() << endl << endl;
+  cs->if_server_crash();
   switch (msg.type()) {
     case proto::Message::REQUEST:
       assert(msg.has_request());
@@ -50,7 +44,12 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg,
       cs->receive_ack(msg.mutable_ack());
       break;
     case proto::Message::TO_BE_HEAD:
-      // cs->to_be_head();
+        cs->to_be_head();
+      break;
+    case proto::Message::NEW_HEAD:
+        assert(msg.has_notify());
+        assert(cs->istail());
+        // to be continued in transfer phase
       break;
     case proto::Message::TO_BE_TAIL:
       // cs->to_be_head();
@@ -74,12 +73,43 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg,
   }
 }
 
+void ChainServer::to_be_head() {
+  ishead_ = true;
+  LOG(INFO) << "Notified to be head server" << endl << endl;
+}
+
+void ChainServer::if_server_crash() {
+  switch (fail_scenario_) {
+    case ChainServer::FailScenario::None:
+      break;
+    case ChainServer::FailScenario::FailAfterSend:
+      if (send_msg_seq == fail_seq_) {
+        LOG(INFO) << "Server crashed after sending " 
+                  << send_msg_seq << " requests." 
+                  << endl << endl;
+        exit(0);
+      }
+      break;
+    case ChainServer::FailScenario::FailAfterRecv:
+      if (rec_msg_seq == fail_seq_) {
+        LOG(INFO) << "Server crashed after receiving " 
+                  << rec_msg_seq << " requests." 
+                  << endl << endl;
+        exit(0);
+      }
+      break;
+    default:
+      break;
+  }
+}
+
 void ChainServer::forward_request(const proto::Request& req) {
   send_msg_tcp(succ_server_addr_, proto::Message::REQUEST, req);
   send_msg_seq++;
   LOG(INFO) << "Server sent tcp message to " << succ_server_addr_.ip() << ":"
             << succ_server_addr_.port() << ", send_req_seq = " << send_msg_seq
             << endl << req.ShortDebugString() << endl << endl;
+  if_server_crash();  // for FailAfterSend & FailAfterSendInExtend scenario
 }
 
 void ChainServer::reply_to_client(const proto::Request& req) {

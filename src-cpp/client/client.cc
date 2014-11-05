@@ -6,17 +6,27 @@ namespace po = boost::program_options;
 
 void Client::handle_msg(proto::Message& msg) {
   switch (msg.type()) {
-    /*
     case proto::Message::NEW_HEAD:
-      assert(msg.has_new_head());
-      // update_new_head
+      assert(msg.has_notify());
+      handle_new_head(msg.notify());
       break;
-    */
     default:
       LOG(ERROR) << "no handler for message type (" << msg.type() << ")" << endl
                  << endl;
       break;
   }
+}
+
+// receive notification of new head server of a specific bank
+void Client::handle_new_head(const proto::Notify& notify) {
+  string bank_id = notify.bank_id();
+  proto::Address server_addr = notify.server_addr();
+  auto it = bank_head_list_.find(bank_id);
+  assert(it != bank_head_list_.end());
+  it->second = server_addr;
+  LOG(INFO) << "Bank " << bank_id << ": head server is changed to "
+            << server_addr.ip() << ":" << server_addr.port()
+            << endl << endl;
 }
 
 void Client::run() {

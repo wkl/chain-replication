@@ -57,6 +57,9 @@ class ChainServer {
   void insert_sent_list(const proto::Request& req);
   void pop_sent_list(string req_id);
   void write_log_reply(const proto::Reply& reply);
+  
+  void if_server_crash();
+  void to_be_head();
 
   // getter/setter
   void set_bank_id(string bank_id) { bank_id_ = bank_id; };
@@ -112,6 +115,15 @@ class ChainServerTCPLoop : public TCPLoop {
   using TCPLoop::TCPLoop;
   void handle_msg(proto::Message& msg, proto::Address& from_addr);
 };
+
+
+int read_config_server(string dir, string bankid, int chainno);
+bool get_server_json_with_chainno(Json::Value server_list_json,
+                                  Json::Value extend_server_list_json,
+                                  Json::Value& result_server_json, int chainno);
+bool get_alive_server_json_with_chainno(Json::Value server_list_json,
+                                  	Json::Value& result_server_json,
+                                  	int chainno);
 
 #endif
 

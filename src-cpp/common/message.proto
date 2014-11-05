@@ -12,6 +12,7 @@ message Message {
 		NEW_SUCC_SERVER = 6;
 		NEW_PRE_SERVER = 7;
 		NEW_TAIL_READY = 8;
+		NEW_HEAD = 9;
 	}
 	required MessageType type = 1;
 	optional Request request = 2;
@@ -19,6 +20,7 @@ message Message {
 	optional Acknowledge ack = 4;
 	optional Heartbeat heartbeat = 5;
 	optional Address addr = 6;
+	optional Notify notify = 7;
 }
 
 message Address {
@@ -69,6 +71,11 @@ message Acknowledge {
 }
 
 message Heartbeat {
+	required string bank_id = 1;
+	required Address server_addr = 2;
+}
+
+message Notify {
 	required string bank_id = 1;
 	required Address server_addr = 2;
 }

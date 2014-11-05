@@ -53,6 +53,9 @@ void Master::handle_heartbeat(const proto::Heartbeat& hb) {
   Node *node = bsc.get_node(hb.server_addr());
   if (node && !node->is_crashed())
     node->set_report_time();
+  LOG(INFO) << "Receive heartbeat from server " 
+            << hb.server_addr().ip() << ":" << hb.server_addr().port() 
+            << " of bank " << hb.bank_id() << endl << endl;
 }
 
 bool Node::become_crashed() {
@@ -73,9 +76,28 @@ bool Node::become_crashed() {
 void notify_crash(BankServerChain& bsc, Node& node) {
   if (node == bsc.head() && node != bsc.tail()) {         // head crashed
     proto::Message empty_msg;
-    send_msg_tcp(bsc.succ_server_addr(node), proto::Message::TO_BE_HEAD,
+    auto *new_head_addr = new proto::Address;
+    new_head_addr->CopyFrom(bsc.succ_server_addr(node));
+    send_msg_tcp(*new_head_addr, proto::Message::TO_BE_HEAD,
                  empty_msg);
     bsc.remove_node(node);
+    LOG(INFO) << "Notify server " 
+              << new_head_addr->ip() << ":" << new_head_addr->port() 
+              << " of bank " << bsc.bank_id() << " to be new head server" 
+              << endl << endl;
+    // notify all clients and tail servers of the new head server
+    proto::Notify notify;
+    notify.set_bank_id(bsc.bank_id());
+    notify.set_allocated_server_addr(new_head_addr);
+    for(const auto& it : master->client_list()) {
+      send_msg_udp(master->addr(), it.second, proto::Message::NEW_HEAD, notify);
+    }   
+    for(const auto& it : master->bank_server_chain()) {
+      BankServerChain tmp_bsc = it.second;
+      send_msg_tcp(tmp_bsc.tail(), proto::Message::NEW_HEAD, notify);
+    }
+    LOG(INFO) << "Notify all the clients and tail servers of the new head server" 
+              << endl << endl;
   } else if (node != bsc.head() && node == bsc.tail()) {  // tail crashed
     proto::Message empty_msg;
     send_msg_tcp(bsc.pre_server_addr(node), proto::Message::TO_BE_TAIL,
@@ -99,7 +121,7 @@ void check_alive() {
       for (auto& node : bsc.second.server_chain())
         if (!node.is_crashed() && node.become_crashed()) {
           LOG(INFO) << bsc.first << " " << node.addr().ShortDebugString()
-                    << " become crashed!" << endl;
+                    << " become crashed!" << endl << endl;
           notify_crash(bsc.second, node);
           return;
         }

@@ -152,6 +152,9 @@ class Master {
   unordered_map<string, BankServerChain>& bank_server_chain() {
     return bank_server_chain_;
   };
+  unordered_map<string, proto::Address>& client_list() { 
+    return client_list_; 
+  };
 
  private:
   proto::Address addr_;
