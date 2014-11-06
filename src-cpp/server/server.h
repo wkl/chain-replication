@@ -60,6 +60,7 @@ class ChainServer {
   
   void if_server_crash();
   void to_be_head();
+  void to_be_tail();
 
   // getter/setter
   void set_bank_id(string bank_id) { bank_id_ = bank_id; };

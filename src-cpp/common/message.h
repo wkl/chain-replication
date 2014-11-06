@@ -28,6 +28,8 @@ using asio::ip::udp;
 using asio::ip::tcp;
 using asio::ip::address;
 
+using std::endl;
+
 const int MSG_HEADER_SIZE = 4;
 const int UDP_MAX_LENGTH = 512;
 

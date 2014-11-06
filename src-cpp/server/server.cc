@@ -44,15 +44,15 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg,
       cs->receive_ack(msg.mutable_ack());
       break;
     case proto::Message::TO_BE_HEAD:
-        cs->to_be_head();
+      cs->to_be_head();
       break;
     case proto::Message::NEW_HEAD:
-        assert(msg.has_notify());
-        assert(cs->istail());
-        // to be continued in transfer phase
+      assert(msg.has_notify());
+      assert(cs->istail());
+      // to be continued in transfer phase
       break;
     case proto::Message::TO_BE_TAIL:
-      // cs->to_be_head();
+      cs->to_be_tail();
       break;
     case proto::Message::NEW_SUCC_SERVER:
       assert(msg.has_addr());
@@ -73,11 +73,33 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg,
   }
 }
 
+// Notified to be head server
 void ChainServer::to_be_head() {
-  ishead_ = true;
   LOG(INFO) << "Notified to be head server" << endl << endl;
+  ishead_ = true;
+  LOG(INFO) << "Ready to be head server" << endl << endl;
 }
 
+// Notified to be tail server
+void ChainServer::to_be_tail() {
+  LOG(INFO) << "Notified to be tail server" << endl << endl;
+  istail_ = true;
+  bool ack_flag = false;
+  while (!sent_list_.empty()) { // not reply to client, client will regard as reply lost
+    proto::Request req = sent_list_.front();
+    insert_processed_list(req);
+    pop_sent_list(req.req_id());
+    ack_flag = true;
+  }
+  if (!ishead_ && ack_flag) {
+    proto::Acknowledge ack;
+    ack.set_bank_update_seq(bank_update_seq_);
+    sendback_ack(ack);
+  }  
+  LOG(INFO) << "Ready to be tail server" << endl << endl;
+}
+
+// Server crash scenario
 void ChainServer::if_server_crash() {
   switch (fail_scenario_) {
     case ChainServer::FailScenario::None:
@@ -104,12 +126,13 @@ void ChainServer::if_server_crash() {
 }
 
 void ChainServer::forward_request(const proto::Request& req) {
-  send_msg_tcp(succ_server_addr_, proto::Message::REQUEST, req);
-  send_msg_seq++;
-  LOG(INFO) << "Server sent tcp message to " << succ_server_addr_.ip() << ":"
-            << succ_server_addr_.port() << ", send_req_seq = " << send_msg_seq
-            << endl << req.ShortDebugString() << endl << endl;
-  if_server_crash();  // for FailAfterSend & FailAfterSendInExtend scenario
+  if (send_msg_tcp(succ_server_addr_, proto::Message::REQUEST, req)) {  // send tcp message successfully
+    send_msg_seq++;
+    LOG(INFO) << "Server sent tcp message to " << succ_server_addr_.ip() << ":"
+              << succ_server_addr_.port() << ", send_req_seq = " << send_msg_seq
+              << endl << req.ShortDebugString() << endl << endl;
+    if_server_crash();  // for FailAfterSend & FailAfterSendInExtend scenario
+  }
 }
 
 void ChainServer::reply_to_client(const proto::Request& req) {
@@ -122,14 +145,17 @@ void ChainServer::reply_to_client(const proto::Request& req) {
   LOG(INFO) << "Server sent udp message to " << client.ip() << ":"
             << client.port() << ", send_req_seq = " << send_msg_seq << endl
             << reply.ShortDebugString() << endl << endl;
+  if_server_crash();  // for FailAfterSend & FailAfterSendInExtend scenario
 }
 
 void ChainServer::sendback_ack(const proto::Acknowledge& ack) {
-  send_msg_tcp(pre_server_addr_, proto::Message::ACKNOWLEDGE, ack);
-  send_msg_seq++;
-  LOG(INFO) << "Server sent tcp message to " << pre_server_addr_.ip() << ":"
-            << pre_server_addr_.port() << ", send_req_seq = " << send_msg_seq
-            << endl << ack.ShortDebugString() << endl << endl;
+  if (send_msg_tcp(pre_server_addr_, proto::Message::ACKNOWLEDGE, ack)) { // send tcp message successfully
+    send_msg_seq++;
+    LOG(INFO) << "Server sent tcp message to " << pre_server_addr_.ip() << ":"
+              << pre_server_addr_.port() << ", send_req_seq = " << send_msg_seq
+              << endl << ack.ShortDebugString() << endl << endl;
+    if_server_crash();  // for FailAfterSend & FailAfterSendInExtend scenario
+  }
 }
 
 void ChainServer::receive_ack(proto::Acknowledge* ack) {
@@ -227,7 +253,8 @@ void ChainServer::tail_handle_update(proto::Request* req) {
   if (req->check_result() == proto::Request::NEWREQ)
     insert_processed_list(*req);
 
-  if (req->type() != proto::Request::TRANSFERTO) reply_to_client(*req);
+  if (req->type() != proto::Request::TRANSFERTO) 
+    reply_to_client(*req);
 
   proto::Acknowledge ack;
   ack.set_bank_update_seq(req->bank_update_seq());
@@ -392,7 +419,7 @@ void ChainServer::insert_processed_list(const proto::Request& req) {
         std::make_pair(req.req_id() + "_" + req.account_id(), req));
     assert(it_insert.second);
     LOG(INFO) << "Server added request req_id=" << req.req_id()
-              << " to processed update request list" << endl << endl;
+              << " to processed list" << endl << endl;
   }
 }
 
@@ -400,14 +427,14 @@ void ChainServer::insert_processed_list(const proto::Request& req) {
 void ChainServer::insert_sent_list(const proto::Request& req) {
   sent_list_.push_back(req);  // insert at the end of deque
   LOG(INFO) << "Server added request req_id=" << req.req_id()
-            << " to sent update request list" << endl << endl;
+            << " to sent list" << endl << endl;
 }
 
 // used in receive_ack(ack)
 void ChainServer::pop_sent_list(string req_id) {
   sent_list_.pop_front();
   LOG(INFO) << "Server removed request req_id=" << req_id
-            << " from sent update request list" << endl << endl;
+            << " from sent list" << endl << endl;
 }
 
 // write processed request result to log
@@ -438,7 +465,6 @@ void heartbeat() {
   hb.set_allocated_server_addr(server_addr);
 
   for (;;) {
-    // send_msg_seq++; // TODO should we count heartbeat?
     send_msg_udp(cs->local_addr(), master_addr, proto::Message::HEARTBEAT, hb);
     std::this_thread::sleep_for(std::chrono::seconds(heartbeat_interval));
   }
@@ -501,8 +527,13 @@ int read_config_server(string dir, string bankid, int chainno) {
         cs->set_fail_scenario(ChainServer::FailScenario::FailAfterIntervalFail);
       if (!server_json.isMember(JSON_FAIL_SEQ))
         cs->set_fail_seq(0);
-      else
-        cs->set_fail_seq(server_json[JSON_FAIL_SEQ].asInt());
+      else {
+        string fail_seq = server_json[JSON_FAIL_SEQ].asString();
+        if (fail_seq == JSON_RANDOM)
+          cs->set_fail_seq(0);  // TODO: use some reasonable random data
+        else
+          cs->set_fail_seq(std::atoi(fail_seq.c_str()));
+      }
       master_addr.set_ip(root[JSON_MASTER][JSON_IP].asString());
       master_addr.set_port(root[JSON_MASTER][JSON_PORT].asInt());
 

@@ -19,7 +19,7 @@
                     "chainno": 1,
                     "startdelay": 0,
                     "failscenario": "fail_after_recv",
-                    "failseq": 2
+                    "failseq": "2"
                 },
                 {
                     "ip": "127.0.0.1",

@@ -13,6 +13,7 @@ message Message {
 		NEW_PRE_SERVER = 7;
 		NEW_TAIL_READY = 8;
 		NEW_HEAD = 9;
+		NEW_TAIL = 10;
 	}
 	required MessageType type = 1;
 	optional Request request = 2;

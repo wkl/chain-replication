@@ -36,6 +36,7 @@ class Client {
 
   void handle_msg(proto::Message& msg);
   void handle_new_head(const proto::Notify& notify);
+  void handle_new_tail(const proto::Notify& notify);
 
   // getter/setter
   void set_ip(string ip) { ip_ = ip; };

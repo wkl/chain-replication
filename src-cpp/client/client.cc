@@ -10,6 +10,10 @@ void Client::handle_msg(proto::Message& msg) {
       assert(msg.has_notify());
       handle_new_head(msg.notify());
       break;
+    case proto::Message::NEW_TAIL:
+      assert(msg.has_notify());
+      handle_new_tail(msg.notify());
+      break;      
     default:
       LOG(ERROR) << "no handler for message type (" << msg.type() << ")" << endl
                  << endl;
@@ -25,6 +29,18 @@ void Client::handle_new_head(const proto::Notify& notify) {
   assert(it != bank_head_list_.end());
   it->second = server_addr;
   LOG(INFO) << "Bank " << bank_id << ": head server is changed to "
+            << server_addr.ip() << ":" << server_addr.port()
+            << endl << endl;
+}
+
+// receive notification of new tail server of a specific bank
+void Client::handle_new_tail(const proto::Notify& notify) {
+  string bank_id = notify.bank_id();
+  proto::Address server_addr = notify.server_addr();
+  auto it = bank_tail_list_.find(bank_id);
+  assert(it != bank_tail_list_.end());
+  it->second = server_addr;
+  LOG(INFO) << "Bank " << bank_id << ": tail server is changed to "
             << server_addr.ip() << ":" << server_addr.port()
             << endl << endl;
 }
@@ -282,7 +298,7 @@ int read_config_client(string dir, vector<Client>& client_vector) {
     client.set_request_vector(request_vector);
     string drop_interval = root[JSON_CONFIG][JSON_UDP_DROP_INTERVAL].asString();
     if (drop_interval == JSON_RANDOM)
-      client.set_drop_interval(rand() % request_vector.size());
+      client.set_drop_interval(rand() % request_vector.size()); // TODO: has problem if requests are randomly generated
     else
       client.set_drop_interval(std::atoi(drop_interval.c_str()));
     client.set_recv_count(0);

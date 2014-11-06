@@ -53,9 +53,11 @@ void Master::handle_heartbeat(const proto::Heartbeat& hb) {
   Node *node = bsc.get_node(hb.server_addr());
   if (node && !node->is_crashed())
     node->set_report_time();
+  /*
   LOG(INFO) << "Receive heartbeat from server " 
             << hb.server_addr().ip() << ":" << hb.server_addr().port() 
             << " of bank " << hb.bank_id() << endl << endl;
+  */
 }
 
 bool Node::become_crashed() {
@@ -100,9 +102,24 @@ void notify_crash(BankServerChain& bsc, Node& node) {
               << endl << endl;
   } else if (node != bsc.head() && node == bsc.tail()) {  // tail crashed
     proto::Message empty_msg;
-    send_msg_tcp(bsc.pre_server_addr(node), proto::Message::TO_BE_TAIL,
+    auto *new_tail_addr = new proto::Address;
+    new_tail_addr->CopyFrom(bsc.pre_server_addr(node));
+    send_msg_tcp(*new_tail_addr, proto::Message::TO_BE_TAIL,
                  empty_msg);
     bsc.remove_node(node);
+    LOG(INFO) << "Notify server " 
+              << new_tail_addr->ip() << ":" << new_tail_addr->port() 
+              << " of bank " << bsc.bank_id() << " to be new tail server" 
+              << endl << endl;  
+    // notify all clients of the new tail server
+    proto::Notify notify;
+    notify.set_bank_id(bsc.bank_id());
+    notify.set_allocated_server_addr(new_tail_addr);
+    for(const auto& it : master->client_list()) {
+      send_msg_udp(master->addr(), it.second, proto::Message::NEW_TAIL, notify);
+    }   
+    LOG(INFO) << "Notify all the clients of the new tail server" 
+              << endl << endl;                
   } else if (node != bsc.head() && node != bsc.tail()) {  // internal crashed
     send_msg_tcp(bsc.pre_server_addr(node), proto::Message::NEW_SUCC_SERVER,
                  bsc.succ_server_addr(node));

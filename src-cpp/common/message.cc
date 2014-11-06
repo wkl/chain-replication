@@ -178,6 +178,12 @@ void prepare_msg(proto::Message &msg,
     case proto::Message::TO_BE_TAIL: {
       break;
     }
+    case proto::Message::NEW_TAIL: {
+      auto *tmp = new proto::Notify();
+      tmp->CopyFrom(sub_msg);
+      msg.set_allocated_notify(tmp);
+      break;
+    }
     case proto::Message::NEW_PRE_SERVER:
     case proto::Message::NEW_SUCC_SERVER:
     case proto::Message::NEW_TAIL_READY: {
@@ -212,7 +218,7 @@ bool send_msg_tcp(proto::Address target,
 
   s.connect(endpoint, ec);
   if (ec) {
-    LOG(INFO) << "Fail to connect to " << endpoint;
+    LOG(INFO) << "Fail to connect to " << endpoint << " to send tcp message" << endl << endl;
     return false;
   }
 
@@ -229,7 +235,7 @@ bool send_msg_tcp(proto::Address target,
   */
   asio::write(s, asio::buffer(buf, buf_size), ec);
   if (ec) {
-    LOG(INFO) << "Fail to write data to " << endpoint;
+    LOG(INFO) << "Fail to write data to " << endpoint << " to send tcp message" << endl << endl;
     return false;
   }
 

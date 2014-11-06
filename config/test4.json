@@ -1,9 +1,9 @@
 {
     "config": {
         "server_report_interval": 1,
-        "server_fail_timeout": 2,
+        "server_fail_timeout": 3,
         "tcp_timeout": 1,
-        "udp_lostseq_interval": "3"
+	      "udp_drop_interval": "0"
     },
     "master": {
         "ip": "127.0.0.1",
@@ -26,15 +26,14 @@
                     "chainno": 2,
                     "startdelay": 0,
                     "failscenario": "none"
-                }
-            ],
-            "extend_servers": [
+                },
                 {
                     "ip": "127.0.0.1",
                     "port": 50003,
                     "chainno": 3,
-                    "startdelay": 1,
-                    "failscenario": "none"
+                    "startdelay": 0,
+                    "failscenario": "fail_after_recv",
+                    "failseq": "3"
                 }
             ]
         }
@@ -44,11 +43,11 @@
             "clientid": "client1",
             "ip": "127.0.0.1",
             "port": 60001,
-            "waittimeout": 5,
+            "waittimeout": 2,
             "resendnum": 3,
             "resend_newhead": true,
             "requests": [
-                 {
+                {
                     "bankid": "bank1",
                     "accountid": "account1",
                     "seq": 1,
