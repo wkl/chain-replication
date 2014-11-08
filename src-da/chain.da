@@ -4,6 +4,7 @@ from collections import deque
 import json
 import random 
 import bisect
+import datetime
 
 JSON_CLIENTS = 'clients'
 JSON_CLIENTID = 'clientid'
@@ -35,8 +36,80 @@ class Outcome(Enum):
     INCONSISTENT_WITH_HISTORY = 2
     INSUFFICIENT_FUNDS = 3
 
+class FailScenario(Enum):
+    Unbounded = 0
+    FailAfterSend = 1
+    FailAfterRecv = 2
+    FailAfterSendInExtend = 3
+    FailAfterRecvInExtend = 4
+    FailAfterIntervalFail = 5
+
+class Node:
+    def __init__(self, process):
+        self.process = process # essentially TCPEndPoint in Distalgo
+        self.crashed = False
+        self.last_report_time = None
+
+    def set_report_time(self):
+        self.last_report_time = datetime.datetime.now()
+
+    def become_crashed(self, fail_timeout):
+        if self.crashed or not self.last_report_time:
+            return False
+
+        time_span = datetime.datetime.now() - self.last_report_time
+        if time_span.total_seconds() > fail_timeout:
+            self.crashed = True
+
+        return self.crashed
+
+    def __str__(self):
+        return "%s" % self.process
+
+class BankServerChain:
+    def __init__(self, bank_id, servers):
+        self.bank_id = bank_id
+        self.servers = [Node(server) for server in servers]
+        self.head = servers[0]
+        self.tail = servers[-1]
+
+    def get_node(self, process):
+        for server in self.servers:
+            if server.process == process:
+                return server
+        return None
+
+class Master(process):
+    def setup(config, bank_chains, clients):
+        pass
+
+    def main():
+        # wakeup to check servers' liveness
+        while True:
+            if await(False):
+                pass
+            elif timeout(config.check_alive_interval):
+                self.check_alive()
+
+    def master_output(log):
+        output("[master] %s\n\n" % log)
+
+    def check_alive():
+        for bank_id, chain in bank_chains.items():
+            for node in chain.servers:
+                if node.become_crashed(config.fail_timeout):
+                    self.master_output("%s-%s crashed!" % (bank_id, node))
+                    # notify
+                    return
+
+    def receive(msg=('HEARTBEAT', bank_id), from_=server):
+        node = bank_chains[bank_id].get_node(server)
+        if node:
+            node.set_report_time()
+            # self.master_output("Heartbeat from %s" % node)
+
 class Server(process):
-    def setup(server_id, bank_id, prev, succ):
+    def setup(server_id, bank_id, prev, succ, master, config):
         self.is_head = True if not prev else False
         self.is_tail = True if not succ else False
 
@@ -48,8 +121,14 @@ class Server(process):
         self.recv_msg_seq = 0
 
     def main():
-        # do nothing in main loop
-        await(0)
+        # wakeup to send heartbeat
+        while True:
+            if await(False):
+                pass
+            elif timeout(config.heartbeat_interval):
+                send(("HEARTBEAT", bank_id), to=master)
+                self.send_msg_seq += 1 # TODO remove
+                self.if_server_crash()
 
     # prefix output log with bank and server id
     def server_output(log):
@@ -117,11 +196,13 @@ class Server(process):
         self.server_output("(%d) Forwarding req to %s: %s" % (self.send_msg_seq, succ, req))
         # output("sent list: %s" % self.sent)
         send(("REQUEST", req), to=succ)
+        self.if_server_crash()
 
     def reply_to_client(req):
         self.send_msg_seq += 1
         self.server_output("(%d) Replying to %s: %s" % (self.send_msg_seq, req.client, req.reply))
         send(("REPLY", req.reply), to=req.client)
+        self.if_server_crash()
 
     # send ack back to previous server
     def send_ack(req):
@@ -129,6 +210,7 @@ class Server(process):
         ack = Acknowledge(req)
         self.server_output("(%d) Sending ACK to %s: %s" % (self.send_msg_seq, req.client, ack))
         send(("ACK", ack), to=prev)
+        self.if_server_crash()
 
     def head_handle_request(req):
         self.update_request_reply(req)
@@ -215,6 +297,23 @@ class Server(process):
         req.reply = reply
         self.reply_to_client(req)
 
+    def if_server_crash():
+        if config.fail_scenario == FailScenario.Unbounded:
+            return
+        elif config.fail_scenario == FailScenario.FailAfterSend:
+            if self.send_msg_seq == config.fail_seq:
+                self.server_output("Crashed after sending %d messages" %
+                                    self.send_msg_seq)
+                sys.exit(1)
+        elif config.fail_scenario == FailScenario.FailAfterRecv:
+            if self.recv_msg_seq == config.fail_seq:
+                self.server_output("Crashed after receiving %d messages" %
+                                    self.recv_msg_seq)
+                sys.exit(1)
+        else:
+            return
+
+
 class Client(process):
     def setup(client_config, bank_heads, bank_tails):
         self.recv = {}
@@ -237,7 +336,8 @@ class Client(process):
             self.client_output("(%d) Sending Request to %s: %s" % (self.send_msg_seq, target, req))
             send(('REQUEST', req), to=target)
             await(self.recv[req.req_id])
-            # await(some(received(('REPLY', reply), has=(reply.req_id == req_id))))
+#await(some(received(('REPLY', reply), has = (reply.req_id == req_id))))
+            break # TODO remove
 
     def receive(msg=('REPLY', reply), from_=s):
         self.recv_msg_seq += 1
@@ -325,12 +425,16 @@ class Acknowledge:
 
 class ClientConfig:
     def __init__(self, json_client, json_banks):
+        type_dict = {
+            'QUERY' : RequestType.QUERY,
+            'DEPOSIT' : RequestType.DEPOSIT,
+            'WITHDRAW' : RequestType.WITHDRAW
+        }
         self.client_id = json_client[JSON_CLIENTID]
         self.request_list = []
         if not JSON_REQSEED in json_client:
             json_requests = json_client[JSON_REQUESTS]
             for json_request in json_requests:
-                type_dict = {'QUERY':RequestType.QUERY, 'DEPOSIT':RequestType.DEPOSIT, 'WITHDRAW':RequestType.WITHDRAW}
                 bank_id = json_request[JSON_BANKID]
                 req_id = "%s.%s.%d" % (bank_id, self.client_id, json_request[JSON_SEQ])
                 account_id = json_request[JSON_ACCOUNTID]
@@ -379,8 +483,24 @@ def random_req_type(weight, items):
     i = bisect.bisect(breakpoints, score)
     return items[i]
 
+class MasterConfig:
+    def __init__(self, check_alive_interval, fail_timeout):
+        self.check_alive_interval = check_alive_interval
+        self.fail_timeout = fail_timeout
+
+class ServerConfig:
+    def __init__(self, heartbeat_interval, tcp_timeout):
+        self.heartbeat_interval = heartbeat_interval
+        self.tcp_timeout = tcp_timeout
+        self.fail_scenario = FailScenario.Unbounded
+        self.fail_seq = 0
+
+    def set_fail_scenario(self, scenario, fail_seq):
+        self.fail_scenario = scenario
+        self.fail_seq = fail_seq
+
 def read_config(path):
-    # XXX python exception is not supported in Distalgo?
+    #XXX python exception is not supported in Distalgo ?
     f = open(path, 'r')
     sjson = json.load(f)
 
@@ -399,6 +519,8 @@ def main():
 
     bank_heads = {}
     bank_tails = {}
+    bank_chains = {}
+    master = new(Master, num=1)
 
     for bank in json_doc[JSON_BANKS]:
         num_server = bank['chainlen']
@@ -417,11 +539,24 @@ def main():
             else:
                 succ = servers[i+1]
 
-            setup(server, (i, bank_id, prev, succ))
+            server_config = ServerConfig(heartbeat_interval=1, tcp_timeout=3)
+            if i == 0: # TODO read from config
+                server_config.set_fail_scenario(FailScenario.FailAfterSend, 5)
+
+            setup(server, (i, bank_id, prev, succ, master, server_config))
             start(server)
 
+        bank_chains[bank_id] = BankServerChain(bank_id, servers)
+
+    clients = []
     for client_config in client_configs:
         client = new(Client, num = 1)
         setup(client, (client_config, bank_heads, bank_tails))
-        start(client)
+        clients.extend(list(client))
 
+    master_config = MasterConfig(check_alive_interval=2, fail_timeout=3)
+    setup(master, (master_config, bank_chains, clients))
+    # start(master)
+
+    for client in clients:
+        start(client)
