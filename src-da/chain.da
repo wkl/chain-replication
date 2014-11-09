@@ -45,7 +45,9 @@ class FailScenario(Enum):
     FailAfterIntervalFail = 5
 
 class Node:
-    def __init__(self, process):
+    def __init__(self, bank_id, server_id, process):
+        self.bank_id = bank_id
+        self.server_id = server_id
         self.process = process # essentially TCPEndPoint in Distalgo
         self.crashed = False
         self.last_report_time = None
@@ -63,21 +65,49 @@ class Node:
 
         return self.crashed
 
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.process == other.process
+        else:
+            return False
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
     def __str__(self):
-        return "%s" % self.process
+        return "%s-%d" % (self.bank_id, self.server_id)
 
 class BankServerChain:
     def __init__(self, bank_id, servers):
         self.bank_id = bank_id
-        self.servers = [Node(server) for server in servers]
-        self.head = servers[0]
-        self.tail = servers[-1]
+        self.servers = [Node(bank_id, i, server) for (i, server) in enumerate(servers)]
+        self.head = self.servers[0]
+        self.tail = self.servers[-1]
 
     def get_node(self, process):
         for server in self.servers:
             if server.process == process:
                 return server
         return None
+
+    def remove_node(self, node):
+        self.servers.remove(node) # works because we defined __eq__
+
+    # return node (which contains bank_id, server_id), not process
+    def succ_server(self, node):
+        assert(node != self.tail)
+        for i, server in enumerate(self.servers):
+            if server.process == node.process:
+                return self.servers[i+1]
+        assert(0)   # assert node is in chain
+
+    # return node, not process
+    def prev_server(self, node):
+        assert(node != self.head)
+        for i, server in enumerate(self.servers):
+            if server.process == node.process:
+                return self.servers[i-1]
+        assert(0)   # assert node is in chain
 
 class Master(process):
     def setup(config, bank_chains, clients):
@@ -98,9 +128,42 @@ class Master(process):
         for bank_id, chain in bank_chains.items():
             for node in chain.servers:
                 if node.become_crashed(config.fail_timeout):
-                    self.master_output("%s-%s crashed!" % (bank_id, node))
-                    # notify
+                    self.master_output("%s crashed!" % (node))
+                    self.notify_crash(chain, node)
                     return
+
+    def notify_crash(chain, node):
+        if node == chain.head and node != chain.tail:   # head crashed
+            new_head = chain.succ_server(node)
+            send(('TO_BE_HEAD', ), to=new_head.process)
+            chain.remove_node(node)
+            chain.head = new_head
+
+            # notify new head to all clients / tail servers
+            for client in clients:
+                send(('NEW_HEAD', new_head), to=client)
+
+            for chain in bank_chains.values():
+                send(('NEW_HEAD', new_head), to=chain.tail.process)
+
+        elif node != chain.head and node == chain.tail:   # tail crashed
+            new_tail = chain.prev_server(node)
+            send(('TO_BE_TAIL', ), to=new_tail.process)
+            chain.remove_node(node)
+            chain.tail = new_tail
+
+            # notify new tail to all clients
+            for client in clients:
+                send(('NEW_TAIL', new_tail), to=client)
+
+        elif node != chain.head and node != chain.tail:
+            send(('NEW_SUCC_SERVER', chain.succ_server(node)), to=chain.prev_server(node).process)
+            send(('NEW_PREV_SERVER', chain.prev_server(node)), to=chain.succ_server(node).process)
+            chain.remove_node(node)
+
+        else:
+            self.master_output("the only server crashed?")
+            assert(0)
 
     def receive(msg=('HEARTBEAT', bank_id), from_=server):
         node = bank_chains[bank_id].get_node(server)
@@ -109,7 +172,7 @@ class Master(process):
             # self.master_output("Heartbeat from %s" % node)
 
 class Server(process):
-    def setup(server_id, bank_id, prev, succ, master, config):
+    def setup(server_id, bank_id, prev, succ, master, bank_heads, config):
         self.is_head = True if not prev else False
         self.is_tail = True if not succ else False
 
@@ -190,12 +253,44 @@ class Server(process):
         assert(not self.is_head and not self.is_tail)
         return self.internal_handle_request(req)
 
+    def receive(msg=('TO_BE_HEAD', ), from_=m):
+        self.recv_msg_seq += 1
+        self.if_server_crash()
+        self.server_output("Notified to be head server")
+        self.is_head = True
+        self.server_output("Ready to be head server")
+
+    def receive(msg=('TO_BE_TAIL', ), from_=m):
+        self.recv_msg_seq += 1
+        self.if_server_crash()
+        self.server_output("Notified to be tail server")
+        self.is_tail = True
+        self.server_output("Ready to be tail server")
+
+    def receive(msg=('NEW_SUCC_SERVER', server), from_=m):
+        self.recv_msg_seq += 1
+        self.if_server_crash()
+        succ = server
+        self.server_output("Notified new succ server: %s" % server)
+
+    def receive(msg=('NEW_PREV_SERVER', server), from_=m):
+        self.recv_msg_seq += 1
+        self.if_server_crash()
+        prev = server
+        self.server_output("Notified new prev server: %s" % server)
+
+    def receive(msg=('NEW_HEAD', new_head), from_=m):
+        self.recv_msg_seq += 1
+        self.if_server_crash()
+        bank_heads[new_head.bank_id] = new_head
+        self.server_output("%s head server is changed to %s" % (new_head.bank_id, new_head))
+
     # forward request to next server
     def forward_request(req):
         self.send_msg_seq += 1
         self.server_output("(%d) Forwarding req to %s: %s" % (self.send_msg_seq, succ, req))
         # output("sent list: %s" % self.sent)
-        send(("REQUEST", req), to=succ)
+        send(("REQUEST", req), to=succ.process)
         self.if_server_crash()
 
     def reply_to_client(req):
@@ -208,8 +303,8 @@ class Server(process):
     def send_ack(req):
         self.send_msg_seq += 1
         ack = Acknowledge(req)
-        self.server_output("(%d) Sending ACK to %s: %s" % (self.send_msg_seq, req.client, ack))
-        send(("ACK", ack), to=prev)
+        self.server_output("(%d) Sending ACK to %s: %s" % (self.send_msg_seq, prev, ack))
+        send(("ACK", ack), to=prev.process)
         self.if_server_crash()
 
     def head_handle_request(req):
@@ -334,15 +429,27 @@ class Client(process):
             self.recv[req.req_id] = 0
             self.send_msg_seq += 1
             self.client_output("(%d) Sending Request to %s: %s" % (self.send_msg_seq, target, req))
-            send(('REQUEST', req), to=target)
+            send(('REQUEST', req), to=target.process)
             await(self.recv[req.req_id])
 #await(some(received(('REPLY', reply), has = (reply.req_id == req_id))))
             break # TODO remove
+
+        await(0)
 
     def receive(msg=('REPLY', reply), from_=s):
         self.recv_msg_seq += 1
         self.client_output("(%d) Received REPLY %s" % (self.recv_msg_seq, reply))
         self.recv[reply.req_id] = 1
+
+    def receive(msg=('NEW_HEAD', new_head), from_=m):
+        self.recv_msg_seq += 1
+        bank_heads[new_head.bank_id] = new_head
+        self.client_output("%s head server is changed to %s" % (new_head.bank_id, new_head))
+
+    def receive(msg=('NEW_TAIL', new_tail), from_=m):
+        self.recv_msg_seq += 1
+        bank_tails[new_tail.bank_id] = new_tail
+        self.client_output("%s tail server is changed to %s" % (new_tail.bank_id, new_tail))
 
 class Bank:
     def __init__(self, bank_id):
@@ -526,27 +633,28 @@ def main():
         num_server = bank['chainlen']
         bank_id = bank['bankid']
         servers = list(new(Server, num = num_server))
-        for (i, server) in enumerate(servers):
+        bank_chains[bank_id] = BankServerChain(bank_id, servers)
+        bank_heads[bank_id] = bank_chains[bank_id].head
+        bank_tails[bank_id] = bank_chains[bank_id].tail
+
+    for bank_id, chain in bank_chains.items():
+        for i, server in enumerate(chain.servers):
             if i == 0:
-                bank_heads[bank_id] = server
                 prev = None
             else:
-                prev = servers[i-1]
+                prev = chain.servers[i-1]
 
-            if i == num_server - 1:
-                bank_tails[bank_id] = server
+            if i == len(chain.servers) - 1:
                 succ = None
             else:
-                succ = servers[i+1]
+                succ = chain.servers[i+1]
 
             server_config = ServerConfig(heartbeat_interval=1, tcp_timeout=3)
             if i == 0: # TODO read from config
-                server_config.set_fail_scenario(FailScenario.FailAfterSend, 5)
+                server_config.set_fail_scenario(FailScenario.FailAfterSend, 4)
 
-            setup(server, (i, bank_id, prev, succ, master, server_config))
-            start(server)
-
-        bank_chains[bank_id] = BankServerChain(bank_id, servers)
+            setup(server.process, (i, bank_id, prev, succ, master, bank_heads, server_config))
+            start(server.process)
 
     clients = []
     for client_config in client_configs:
@@ -556,7 +664,7 @@ def main():
 
     master_config = MasterConfig(check_alive_interval=2, fail_timeout=3)
     setup(master, (master_config, bank_chains, clients))
-    # start(master)
+    start(master)
 
     for client in clients:
         start(client)
