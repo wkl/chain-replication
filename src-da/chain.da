@@ -8,6 +8,9 @@ import datetime
 
 JSON_CLIENTS = 'clients'
 JSON_CLIENTID = 'clientid'
+JSON_WAIT_TIMEOUT = 'waittimeout'
+JSON_RESEND_NUM = 'resendnum'
+JSON_RESEND_NEWHEAD = 'resend_newhead'
 JSON_REQSEED = 'reqseed'
 JSON_REQUESTS = 'requests'
 JSON_TYPE = 'type'
@@ -22,6 +25,17 @@ JSON_MAXAMOUNT = 'maxamount'
 JSON_PROBQUERY = 'probquery'
 JSON_PROBWITHDRAW = 'probwithdraw'
 JSON_PROBDEPOSIT = 'probdeposit'
+JSON_SERVER_REPORT_INTERVAL = 'server_report_interval'
+JSON_SERVER_FAIL_TIMEOUT = 'server_fail_timeout'
+JSON_FAIL_SCENARIO = 'failscenario'
+JSON_FAIL_SEQ = 'failseq'
+JSON_RANDOM = 'random'
+JSON_UNBOUNDED = "none"
+JSON_FAIL_AFTER_SEND = 'fail_after_send'
+JSON_FAIL_AFTER_RECV = 'fail_after_recv'
+JSON_FAIL_AFTER_SEND_IN_EXTEND = 'fail_after_send_in_extend'
+JSON_FAIL_AFTER_RECV_IN_EXTEND = 'fail_after_recv_in_extend'
+JSON_FAIL_AFTER_INTERVAL_FAIL = 'fail_after_interval_fail'
 
 class RequestType(Enum):
     QUERY = 0
@@ -396,7 +410,7 @@ class Server(process):
         if config.fail_scenario == FailScenario.Unbounded:
             return
         elif config.fail_scenario == FailScenario.FailAfterSend:
-            if self.send_msg_seq == config.fail_seq:
+            if self.send_msg_seq > config.fail_seq: # TODO modify to ==
                 self.server_output("Crashed after sending %d messages" %
                                     self.send_msg_seq)
                 sys.exit(1)
@@ -410,18 +424,18 @@ class Server(process):
 
 
 class Client(process):
-    def setup(client_config, bank_heads, bank_tails):
+    def setup(bank_heads, bank_tails, config):
         self.recv = {}
         self.send_msg_seq = 0
         self.recv_msg_seq = 0
 
     # output log with client id
     def client_output(log):
-        output("[%s] %s\n\n" % (client_config.client_id, log))
+        output("[%s] %s\n\n" % (config.client_id, log))
 
     def main():
         count = 0
-        for req in client_config.request_list:
+        for req in config.request_list:
             if req.type == RequestType.QUERY:
                 target = bank_tails[req.bank_id]
             else:
@@ -430,8 +444,11 @@ class Client(process):
             self.send_msg_seq += 1
             self.client_output("(%d) Sending Request to %s: %s" % (self.send_msg_seq, target, req))
             send(('REQUEST', req), to=target.process)
-            await(self.recv[req.req_id])
-#await(some(received(('REPLY', reply), has = (reply.req_id == req_id))))
+            while True:
+                if await(self.recv[req.req_id]):
+                    break
+                elif timeout(config.wait_timeout):
+                    self.client_output("timeout")
             break # TODO remove
 
         await(0)
@@ -538,6 +555,9 @@ class ClientConfig:
             'WITHDRAW' : RequestType.WITHDRAW
         }
         self.client_id = json_client[JSON_CLIENTID]
+        self.wait_timeout = json_client[JSON_WAIT_TIMEOUT]
+        self.resend_num = json_client[JSON_RESEND_NUM]
+        self.resend_newhead = json_client[JSON_RESEND_NEWHEAD]
         self.request_list = []
         if not JSON_REQSEED in json_client:
             json_requests = json_client[JSON_REQUESTS]
@@ -582,7 +602,7 @@ class ClientConfig:
 
 def random_req_type(weight, items):
     mysum = 0
-    breakpoints = []    
+    breakpoints = []
     for i in items:
         mysum += weight[i]
         breakpoints.append(mysum)
@@ -591,30 +611,31 @@ def random_req_type(weight, items):
     return items[i]
 
 class MasterConfig:
-    def __init__(self, check_alive_interval, fail_timeout):
-        self.check_alive_interval = check_alive_interval
-        self.fail_timeout = fail_timeout
+    def __init__(self, config_json):
+        self.check_alive_interval = config_json[JSON_SERVER_REPORT_INTERVAL]
+        self.fail_timeout = config_json[JSON_SERVER_FAIL_TIMEOUT]
 
 class ServerConfig:
-    def __init__(self, heartbeat_interval, tcp_timeout):
-        self.heartbeat_interval = heartbeat_interval
-        self.tcp_timeout = tcp_timeout
-        self.fail_scenario = FailScenario.Unbounded
-        self.fail_seq = 0
+    def __init__(self, server_json, config_json):
+        self.heartbeat_interval = config_json[JSON_SERVER_REPORT_INTERVAL]
 
-    def set_fail_scenario(self, scenario, fail_seq):
-        self.fail_scenario = scenario
-        self.fail_seq = fail_seq
+        if server_json[JSON_FAIL_SCENARIO] == JSON_UNBOUNDED:
+            self.fail_scenario = FailScenario.Unbounded
+        elif server_json[JSON_FAIL_SCENARIO] == JSON_FAIL_AFTER_SEND:
+            self.fail_scenario = FailScenario.FailAfterSend
+        elif server_json[JSON_FAIL_SCENARIO] == JSON_FAIL_AFTER_RECV:
+            self.fail_scenario = FailScenario.FailAfterRecv
+        elif server_json[JSON_FAIL_SCENARIO] == JSON_FAIL_AFTER_SEND_IN_EXTEND:
+            self.fail_scenario = FailScenario.FailAfterSendInExtend
+        elif server_json[JSON_FAIL_SCENARIO] == JSON_FAIL_AFTER_RECV_IN_EXTEND:
+            self.fail_scenario = FailScenario.FailAfterRecvInExtend
 
-def read_config(path):
-    #XXX python exception is not supported in Distalgo ?
-    f = open(path, 'r')
-    sjson = json.load(f)
-
-    config_clients = []
-    for config in sjson[JSON_CLIENTS]:
-        config_clients.append(ClientConfig(config, sjson[JSON_BANKS]))
-    return sjson, config_clients
+        seq = server_json.get(JSON_FAIL_SEQ)
+        if seq:
+            if seq == JSON_RANDOM:
+                self.fail_seq = 0 # TODO random seq
+            else:
+                self.fail_seq = int(seq)
 
 def main():
     config(channel="fifo")
@@ -622,49 +643,60 @@ def main():
     if len(sys.argv) != 2:
         print("Usage: python3 -m da %s config_file_path" % sys.argv[0])
         sys.exit(1)
-    json_doc, client_configs = read_config(sys.argv[1])
 
+    # XXX python exception is not supported in Distalgo ?
+    f = open(sys.argv[1], 'r')
+    json_doc = json.load(f)
+
+    common_config_json = json_doc['config']
+
+    # read client configs
+    client_configs = []
+    for config in json_doc[JSON_CLIENTS]:
+        client_configs.append(ClientConfig(config, json_doc[JSON_BANKS]))
+
+    bank_jsons = {}
     bank_heads = {}
     bank_tails = {}
     bank_chains = {}
+
+    # create master
     master = new(Master, num=1)
 
-    for bank in json_doc[JSON_BANKS]:
-        num_server = bank['chainlen']
-        bank_id = bank['bankid']
+    # create bank server
+    for bank_json in json_doc[JSON_BANKS]:
+        num_server = len(bank_json['servers'])
+        bank_id = bank_json['bankid']
         servers = list(new(Server, num = num_server))
         bank_chains[bank_id] = BankServerChain(bank_id, servers)
         bank_heads[bank_id] = bank_chains[bank_id].head
         bank_tails[bank_id] = bank_chains[bank_id].tail
+        bank_jsons[bank_id] = bank_json
 
+    # setup and run bank server
     for bank_id, chain in bank_chains.items():
+        bank_json = bank_jsons[bank_id]
         for i, server in enumerate(chain.servers):
-            if i == 0:
-                prev = None
-            else:
-                prev = chain.servers[i-1]
-
-            if i == len(chain.servers) - 1:
-                succ = None
-            else:
-                succ = chain.servers[i+1]
-
-            server_config = ServerConfig(heartbeat_interval=1, tcp_timeout=3)
-            if i == 0: # TODO read from config
-                server_config.set_fail_scenario(FailScenario.FailAfterSend, 4)
-
-            setup(server.process, (i, bank_id, prev, succ, master, bank_heads, server_config))
+            prev = chain.servers[i-1] if i > 0 else None
+            succ = chain.servers[i+1] if i < len(chain.servers) - 1 else None
+            server_json = bank_json['servers'][i]
+            server_config = ServerConfig(server_json, common_config_json)
+            setup(server.process, (i, bank_id, prev, succ, master,
+                                   bank_heads, server_config))
             start(server.process)
 
+    # create and setup clients
     clients = []
     for client_config in client_configs:
         client = new(Client, num = 1)
-        setup(client, (client_config, bank_heads, bank_tails))
+        setup(client, (bank_heads, bank_tails, client_config))
         clients.extend(list(client))
 
-    master_config = MasterConfig(check_alive_interval=2, fail_timeout=3)
+    # setup and run master
+    master_config = MasterConfig(common_config_json)
     setup(master, (master_config, bank_chains, clients))
     start(master)
 
+    # run client
     for client in clients:
         start(client)
