@@ -5,6 +5,7 @@ import json
 import random 
 import bisect
 import datetime
+import time
 
 JSON_CLIENTS = 'clients'
 JSON_CLIENTID = 'clientid'
@@ -204,7 +205,6 @@ class Server(process):
                 pass
             elif timeout(config.heartbeat_interval):
                 send(("HEARTBEAT", bank_id), to=master)
-                self.send_msg_seq += 1 # TODO remove
                 self.if_server_crash()
 
     # prefix output log with bank and server id
@@ -410,7 +410,7 @@ class Server(process):
         if config.fail_scenario == FailScenario.Unbounded:
             return
         elif config.fail_scenario == FailScenario.FailAfterSend:
-            if self.send_msg_seq > config.fail_seq: # TODO modify to ==
+            if self.send_msg_seq == config.fail_seq:
                 self.server_output("Crashed after sending %d messages" %
                                     self.send_msg_seq)
                 sys.exit(1)
@@ -442,18 +442,34 @@ class Client(process):
                 target = bank_heads[req.bank_id]
             self.recv[req.req_id] = 0
             self.send_msg_seq += 1
-            self.client_output("(%d) Sending Request to %s: %s" % (self.send_msg_seq, target, req))
+            self.client_output("(%d) Sending Request to %s: %s" %
+                                (self.send_msg_seq, target, req))
             send(('REQUEST', req), to=target.process)
+            resend_count = 0
             while True:
                 if await(self.recv[req.req_id]):
                     break
                 elif timeout(config.wait_timeout):
-                    self.client_output("timeout")
-            break # TODO remove
+                    self.client_output("Request (%s) timeout" % req.req_id)
+                    resend_count += 1
+                    if resend_count > config.resend_num:
+                        self.client_output("retried %d times, abort request"
+                                            % config.resend_num)
+                        break
+                    if config.resend_newhead:
+                        if req.type == RequestType.QUERY:
+                            target = bank_tails[req.bank_id]
+                        else:
+                            target = bank_heads[req.bank_id]
 
-        await(0)
+                    self.client_output("retrying (%d of %d) Request (%s)" %
+                                (resend_count, config.resend_num, req.req_id))
+                    send(('REQUEST', req), to=target.process)
+
+        await(0) # all requets complete, waiting for notification
 
     def receive(msg=('REPLY', reply), from_=s):
+        # TODO drop some reply
         self.recv_msg_seq += 1
         self.client_output("(%d) Received REPLY %s" % (self.recv_msg_seq, reply))
         self.recv[reply.req_id] = 1
@@ -696,6 +712,9 @@ def main():
     master_config = MasterConfig(common_config_json)
     setup(master, (master_config, bank_chains, clients))
     start(master)
+
+    # make sure server / master is up and perfromed some heartbeat
+    time.sleep(1)
 
     # run client
     for client in clients:
