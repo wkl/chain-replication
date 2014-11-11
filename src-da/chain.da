@@ -172,7 +172,7 @@ class Master(process):
                 send(('NEW_TAIL', new_tail), to=client)
 
         elif node != chain.head and node != chain.tail:
-            send(('NEW_SUCC_SERVER', chain.succ_server(node)), to=chain.prev_server(node).process)
+            # send(('NEW_SUCC_SERVER', chain.succ_server(node)), to=chain.prev_server(node).process)
             send(('NEW_PREV_SERVER', chain.prev_server(node)), to=chain.succ_server(node).process)
             chain.remove_node(node)
 
@@ -185,6 +185,11 @@ class Master(process):
         if node:
             node.set_report_time()
             # self.master_output("Heartbeat from %s" % node)
+
+    def receive(msg=('ACK_NEW_PREV_SERVER', bank_id, succ_sn), from_=succ):
+        succ_server = bank_chains[bank_id].get_node(succ)
+        prev_server = bank_chains[bank_id].prev_server(succ_server)
+        send(('NEW_SUCC_SERVER', succ_server, succ_sn), to=prev_server.process)
 
 class Server(process):
     def setup(server_id, bank_id, prev, succ, master, bank_heads, config):
@@ -293,17 +298,23 @@ class Server(process):
 
         self.server_output("Ready to be tail server")
 
-    def receive(msg=('NEW_SUCC_SERVER', server), from_=m):
+    def receive(msg=('NEW_SUCC_SERVER', server, succ_sn), from_=m):
         self.recv_msg_seq += 1
         self.if_server_crash()
         succ = server
         self.server_output("Notified new succ server: %s" % server)
+        # TODO to block incoming request? how?
+        for req in self.sent:
+            if req.bank_update_seq > succ_sn:
+                self.forward_request(req) # this is counted as send_msg_seq
 
     def receive(msg=('NEW_PREV_SERVER', server), from_=m):
         self.recv_msg_seq += 1
         self.if_server_crash()
         prev = server
         self.server_output("Notified new prev server: %s" % server)
+        self.send_msg_seq += 1 # TODO count this msg?
+        send(('ACK_NEW_PREV_SERVER', self.bank_id, self.bank_update_seq), to=master)
 
     def receive(msg=('NEW_HEAD', new_head), from_=m):
         self.recv_msg_seq += 1
@@ -676,9 +687,10 @@ def main():
     f = open(sys.argv[1], 'r')
     json_doc = json.load(f)
 
+    # TODO extending delay
     common_config_json = json_doc['config']
 
-    # read client configs
+    #read client configs
     client_configs = []
     for config in json_doc[JSON_CLIENTS]:
         client_configs.append(ClientConfig(config, json_doc[JSON_BANKS]))
