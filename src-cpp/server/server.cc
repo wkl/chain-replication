@@ -34,6 +34,7 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg,
             << from_addr.port() << ", recv_req_seq = " << rec_msg_seq << endl
             << msg.ShortDebugString() << endl << endl;
   cs->if_server_crash();
+  cs->set_internal_crashing(false); 
   switch (msg.type()) {
     case proto::Message::REQUEST:
       assert(msg.has_request());
@@ -54,17 +55,21 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg,
     case proto::Message::TO_BE_TAIL:
       cs->to_be_tail();
       break;
-    case proto::Message::NEW_SUCC_SERVER:
-      assert(msg.has_addr());
-      // cs->to_be_head();
-      break;
     case proto::Message::NEW_PRE_SERVER:
       assert(msg.has_addr());
-      // cs->to_be_head();
+      cs->receive_new_preserver(msg.addr());
       break;
+    case proto::Message::NEW_SUCC_SERVER:
+      assert(msg.has_reqseq());
+      cs->receive_new_succserver(msg.reqseq());
+      break;      
     case proto::Message::NEW_TAIL_READY:
       assert(msg.has_addr());
       // cs->to_be_head();
+      break;
+    case proto::Message::EXTEND_SERVER:
+      assert(msg.has_addr());
+      cs->receive_extend_server(msg.addr());
       break;
     default:
       LOG(ERROR) << "no handler for message type (" << msg.type() << ")" << endl
@@ -88,7 +93,7 @@ void ChainServer::to_be_tail() {
   while (!sent_list_.empty()) { // not reply to client, client will regard as reply lost
     proto::Request req = sent_list_.front();
     insert_processed_list(req);
-    pop_sent_list(req.req_id());
+    pop_sent_list();
     ack_flag = true;
   }
   if (!ishead_ && ack_flag) {
@@ -99,6 +104,55 @@ void ChainServer::to_be_tail() {
   LOG(INFO) << "Ready to be tail server" << endl << endl;
 }
 
+// Notified a new pre server
+void ChainServer::receive_new_preserver(const proto::Address& pre_addr) {
+  LOG(INFO) << "Notified pre server address is changed to " 
+            << pre_addr.ip() << ":" << pre_addr.port() 
+            << endl << endl;
+  internal_crashing_ = true;
+  pre_server_addr_ = pre_addr;
+  proto::Reqseq req_seq;
+  req_seq.set_bank_update_seq(bank_update_seq_);
+  req_seq.set_bank_id(bank_id_);
+  auto *pre_addr_copy = new proto::Address;
+  pre_addr_copy->CopyFrom(pre_server_addr_);
+  req_seq.set_allocated_pre_addr(pre_addr_copy);
+  auto *local_addr_copy = new proto::Address;
+  local_addr_copy->CopyFrom(local_addr_);
+  req_seq.set_allocated_succ_addr(local_addr_copy);
+  send_msg_tcp(master_addr, proto::Message::REQ_SEQ, req_seq);
+  LOG(INFO) << "Send sequence number of the last update request to the master: " 
+            << bank_update_seq_ << endl << endl;
+}
+
+// Notified a new succ server
+void ChainServer::receive_new_succserver(const proto::Reqseq& req_seq) {
+  LOG(INFO) << "Notified succ server address is changed to " 
+            << req_seq.succ_addr().ip() << ":" << req_seq.succ_addr().port() 
+            << ", should send update requests in the sentlist to S+ server with sequence number>"
+            << req_seq.bank_update_seq() 
+            << endl << endl;
+  internal_crashing_ = true;
+  if_server_crash();
+  succ_server_addr_ = req_seq.succ_addr();
+  for (auto& it : sent_list_) {
+    if (it.bank_update_seq() > req_seq.bank_update_seq())
+      forward_request(it);
+  }
+  LOG(INFO) << "Finish sending update requests in the sentlist to S+ server with sequence number>" 
+            << req_seq.bank_update_seq() 
+            << endl << endl; 
+  internal_crashing_ = false;          
+}
+
+// Notified a extend server
+void ChainServer::receive_extend_server(const proto::Address& extend_addr) {
+  extending_chain_ = true;
+  finish_sending_hist_ = false;
+  succ_server_addr_ = extend_addr;
+  // send history request to extended server (need another thread)  
+}
+
 // Server crash scenario
 void ChainServer::if_server_crash() {
   switch (fail_scenario_) {
@@ -107,7 +161,7 @@ void ChainServer::if_server_crash() {
     case ChainServer::FailScenario::FailAfterSend:
       if (send_msg_seq == fail_seq_) {
         LOG(INFO) << "Server crashed after sending " 
-                  << send_msg_seq << " requests." 
+                  << send_msg_seq << " messages." 
                   << endl << endl;
         exit(0);
       }
@@ -115,7 +169,14 @@ void ChainServer::if_server_crash() {
     case ChainServer::FailScenario::FailAfterRecv:
       if (rec_msg_seq == fail_seq_) {
         LOG(INFO) << "Server crashed after receiving " 
-                  << rec_msg_seq << " requests." 
+                  << rec_msg_seq << " messages." 
+                  << endl << endl;
+        exit(0);
+      }
+      break;
+    case ChainServer::FailScenario::FailAfterIntervalFail:
+      if (internal_crashing_) {
+        LOG(INFO) << "Server crashed immediately after interval server crashed"
                   << endl << endl;
         exit(0);
       }
@@ -163,7 +224,7 @@ void ChainServer::receive_ack(proto::Acknowledge* ack) {
          sent_list_.front().bank_update_seq() <= ack->bank_update_seq()) {
     proto::Request req = sent_list_.front();
     insert_processed_list(req);
-    pop_sent_list(req.req_id());
+    pop_sent_list();
   }
   if (!ishead_) {
     sendback_ack(*ack);
@@ -241,8 +302,17 @@ void ChainServer::single_handle_update(proto::Request* req) {
 
   if (req->check_result() == proto::Request::NEWREQ)
     insert_processed_list(*req);
-
+  if (extending_chain_)
+    insert_sent_list(*req);
+    
   reply_to_client(*req);
+  
+  if (extending_chain_ && finish_sending_hist_) {
+    // forward request in the sent_list to succ server
+    istail_ = false;
+    extending_chain_ = false;
+    finish_sending_hist_ = false;
+  }
 }
 
 // tail server handle update request
@@ -252,6 +322,8 @@ void ChainServer::tail_handle_update(proto::Request* req) {
 
   if (req->check_result() == proto::Request::NEWREQ)
     insert_processed_list(*req);
+  if (extending_chain_)
+    insert_sent_list(*req);
 
   if (req->type() != proto::Request::TRANSFERTO) 
     reply_to_client(*req);
@@ -259,6 +331,14 @@ void ChainServer::tail_handle_update(proto::Request* req) {
   proto::Acknowledge ack;
   ack.set_bank_update_seq(req->bank_update_seq());
   sendback_ack(ack);
+  
+  if (extending_chain_ && finish_sending_hist_) {
+    // forward request in the sent_list to succ server
+    
+    istail_ = false;
+    extending_chain_ = false;
+    finish_sending_hist_ = false;
+  } 
 }
 
 // interval server handle update request
@@ -419,6 +499,7 @@ void ChainServer::insert_processed_list(const proto::Request& req) {
         std::make_pair(req.req_id() + "_" + req.account_id(), req));
     assert(it_insert.second);
     LOG(INFO) << "Server added request req_id=" << req.req_id()
+              << ", bank_update_seq=" << req.bank_update_seq()
               << " to processed list" << endl << endl;
   }
 }
@@ -427,14 +508,17 @@ void ChainServer::insert_processed_list(const proto::Request& req) {
 void ChainServer::insert_sent_list(const proto::Request& req) {
   sent_list_.push_back(req);  // insert at the end of deque
   LOG(INFO) << "Server added request req_id=" << req.req_id()
+            << ", bank_update_seq=" << req.bank_update_seq()
             << " to sent list" << endl << endl;
 }
 
 // used in receive_ack(ack)
-void ChainServer::pop_sent_list(string req_id) {
-  sent_list_.pop_front();
-  LOG(INFO) << "Server removed request req_id=" << req_id
+void ChainServer::pop_sent_list() {
+  proto::Request req = sent_list_.front();
+  LOG(INFO) << "Server removed request req_id=" << req.req_id()
+            << ", bank_update_seq=" << req.bank_update_seq()
             << " from sent list" << endl << endl;
+  sent_list_.pop_front();
 }
 
 // write processed request result to log
@@ -456,13 +540,23 @@ void ChainServer::write_log_reply(const proto::Reply& reply) {
             << endl << endl;
 }
 
-// TODO delayed server also delay heartbeat?
+// TODO delayed server also delay heartbeat
 void heartbeat() {
   proto::Heartbeat hb;
   hb.set_bank_id(cs->bank_id());
   auto *server_addr = new proto::Address();
   server_addr->CopyFrom(cs->local_addr());
   hb.set_allocated_server_addr(server_addr);
+  
+  if (cs->start_delay() > 0) {  // for extended servers
+    std::this_thread::sleep_for(std::chrono::seconds(cs->start_delay()));
+    proto::Join join;
+    join.set_bank_id(cs->bank_id());
+    auto *local_addr_copy = new proto::Address;
+    local_addr_copy->CopyFrom(cs->local_addr());
+    join.set_allocated_server_addr(local_addr_copy);
+    send_msg_tcp(master_addr, proto::Message::JOIN, join);    
+  }
 
   for (;;) {
     send_msg_udp(cs->local_addr(), master_addr, proto::Message::HEARTBEAT, hb);
@@ -534,6 +628,7 @@ int read_config_server(string dir, string bankid, int chainno) {
         else
           cs->set_fail_seq(std::atoi(fail_seq.c_str()));
       }
+      cs->set_internal_crashing(false);
       master_addr.set_ip(root[JSON_MASTER][JSON_IP].asString());
       master_addr.set_port(root[JSON_MASTER][JSON_PORT].asInt());
 

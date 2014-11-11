@@ -1,5 +1,6 @@
-#include "client.h"
-#include "udp_client.h"
+#include  <setjmp.h>
+#include  "client.h"
+#include  "udp_client.h"
 
 #include <boost/program_options.hpp>
 namespace po = boost::program_options;
@@ -28,7 +29,8 @@ void Client::handle_new_head(const proto::Notify& notify) {
   auto it = bank_head_list_.find(bank_id);
   assert(it != bank_head_list_.end());
   it->second = server_addr;
-  LOG(INFO) << "Bank " << bank_id << ": head server is changed to "
+  LOG(INFO) << clientid_ << ": Bank " << bank_id 
+            << "'s head server is changed to "
             << server_addr.ip() << ":" << server_addr.port()
             << endl << endl;
 }
@@ -40,7 +42,8 @@ void Client::handle_new_tail(const proto::Notify& notify) {
   auto it = bank_tail_list_.find(bank_id);
   assert(it != bank_tail_list_.end());
   it->second = server_addr;
-  LOG(INFO) << "Bank " << bank_id << ": tail server is changed to "
+  LOG(INFO) << clientid_ << ": Bank " << bank_id 
+            << "'s tail server is changed to "
             << server_addr.ip() << ":" << server_addr.port()
             << endl << endl;
 }
@@ -52,6 +55,88 @@ void Client::run() {
   UDPReceiver receiver(listen_endpoint);
 
   try {
+    for (auto req : request_vector_) {
+      // have a sleep
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+ 
+      // client address
+      proto::Address* local_addr = new proto::Address;
+      local_addr->set_ip(ip_);
+      local_addr->set_port(port_);
+      req.set_allocated_client_addr(local_addr);
+
+      // check request type and send request
+      proto::Address target;
+      if (req.type() == proto::Request::QUERY)
+        target = get_bank_tail(req.bank_id());
+      else
+        target = get_bank_head(req.bank_id()); 
+        
+      int retry = 0;
+      bool accept_flag = false; // used to judge whether the reply is corresponding to current request 
+      while(retry <= resend_num_ && !accept_flag) {
+        send_msg_udp(*local_addr, target, proto::Message::REQUEST, req);
+        LOG(INFO) << clientid_ << ": sent udp message to " 
+                  << target.ip() << ":" << target.port() << endl
+                  << req.ShortDebugString() << endl << endl;
+        
+        while (!accept_flag) {
+          // receive
+          boost::system::error_code ec;
+          size_t length = receiver.receive(
+              boost::asio::buffer(data, UDP_MAX_LENGTH), sender_endpoint,
+              boost::posix_time::seconds(wait_timeout_), ec);
+          if (ec) { // timeout
+            retry++;
+            if (retry > resend_num_) {  // reaches maximum resend times, abort
+              LOG(INFO) << clientid_ << ": retry " << resend_num_ 
+                        << " times with no reply, abort request (" 
+                        << req.req_id() << ")" << endl << endl;
+            }
+            else {  // resend
+              if (resend_newhead_) {  // try new head / tail to resend
+                if (req.type() == proto::Request::QUERY)
+                  target = get_bank_tail(req.bank_id());
+                else
+                  target = get_bank_head(req.bank_id());
+              }
+              LOG(INFO) << clientid_ << ": timeout, retrying request (" 
+                        << req.req_id() << ", " 
+                        << retry << " of "
+                        << resend_num_ << ")" 
+                        << endl << endl;
+            }          
+            break;
+          }
+          proto::Message msg;
+          assert(decode_msg(msg, data, length));
+          if (msg.type() == proto::Message::REPLY) {  // msg is a reply
+            recv_count_++;
+            bool drop_this_reply = drop_reply();
+            if (drop_this_reply) {   // drop packet on purpose
+              LOG(INFO) << clientid_ << ": reply packet dropped, req_id=" 
+                        << msg.reply().req_id() 
+                        << endl << endl;
+            }
+            else {  // receive packet
+              if (msg.reply().req_id() == req.req_id()) // accept packet
+                accept_flag = true;
+              LOG(INFO) << clientid_ << ": received udp message from "
+                        << sender_endpoint << endl 
+                        << msg.ShortDebugString() << endl << endl;
+            }
+          }
+          else {  // msg is other notification
+            LOG(INFO) << clientid_ << ": received udp message from "
+                      << sender_endpoint << endl 
+                      << msg.ShortDebugString() << endl << endl;
+            handle_msg(msg);
+          }
+        } // end of while (!accept_flag)
+      }  // end of while(retry <= resend_num_ && !accept_flag)
+    }
+    
+    /*
     for (auto req : request_vector_) {
       // have a sleep
       std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -118,7 +203,7 @@ void Client::run() {
         bool drop_this_reply = drop_reply();
         if (msg.type() == proto::Message::REPLY) {
           recv_count_ ++;
-          // might receive previous timeout reply
+          // TODO: might receive previous timeout reply
           if (msg.reply().req_id() == req.req_id() && drop_this_reply) {
             // have a sleep
             std::this_thread::sleep_for(std::chrono::seconds(wait_timeout_));
@@ -140,7 +225,8 @@ void Client::run() {
         should_send_request = false;
         handle_msg(msg);
       }
-    }
+      
+    } */
   } catch (std::exception& e) {
     LOG(ERROR) << "error: " << e.what() << endl << endl;
   }

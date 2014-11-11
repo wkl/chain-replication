@@ -184,9 +184,37 @@ void prepare_msg(proto::Message &msg,
       msg.set_allocated_notify(tmp);
       break;
     }
-    case proto::Message::NEW_PRE_SERVER:
-    case proto::Message::NEW_SUCC_SERVER:
+    case proto::Message::NEW_PRE_SERVER: {
+      auto *tmp = new proto::Address();
+      tmp->CopyFrom(sub_msg);
+      msg.set_allocated_addr(tmp);
+      break;
+    }
+    case proto::Message::REQ_SEQ: {
+      auto *tmp = new proto::Reqseq();
+      tmp->CopyFrom(sub_msg);
+      msg.set_allocated_reqseq(tmp);
+      break;
+    }
+    case proto::Message::NEW_SUCC_SERVER: {
+      auto *tmp = new proto::Reqseq();
+      tmp->CopyFrom(sub_msg);
+      msg.set_allocated_reqseq(tmp);
+      break;
+    }
     case proto::Message::NEW_TAIL_READY: {
+      auto *tmp = new proto::Address();
+      tmp->CopyFrom(sub_msg);
+      msg.set_allocated_addr(tmp);
+      break;
+    }
+    case proto::Message::JOIN: {
+      auto *tmp = new proto::Join();
+      tmp->CopyFrom(sub_msg);
+      msg.set_allocated_join(tmp);
+      break;
+    }
+    case proto::Message::EXTEND_SERVER: {
       auto *tmp = new proto::Address();
       tmp->CopyFrom(sub_msg);
       msg.set_allocated_addr(tmp);

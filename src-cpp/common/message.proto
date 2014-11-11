@@ -14,6 +14,9 @@ message Message {
 		NEW_TAIL_READY = 8;
 		NEW_HEAD = 9;
 		NEW_TAIL = 10;
+		REQ_SEQ = 11;
+		JOIN = 12;
+		EXTEND_SERVER = 13;
 	}
 	required MessageType type = 1;
 	optional Request request = 2;
@@ -22,6 +25,8 @@ message Message {
 	optional Heartbeat heartbeat = 5;
 	optional Address addr = 6;
 	optional Notify notify = 7;
+	optional Reqseq reqseq = 8;
+	optional Join join = 9;
 }
 
 message Address {
@@ -80,3 +85,16 @@ message Notify {
 	required string bank_id = 1;
 	required Address server_addr = 2;
 }
+
+message Reqseq {
+  required uint32 bank_update_seq = 1;
+  required string bank_id = 2;
+  required Address pre_addr = 3;
+  required Address succ_addr = 4;
+}
+
+message Join {
+	required string bank_id = 1;
+	required Address server_addr = 2;
+}
+

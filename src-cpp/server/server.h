@@ -29,8 +29,9 @@ using std::cerr;
 class ChainServer {
  public:
   enum class UpdateBalanceOutcome { Success, InsufficientFunds };
-  enum class FailScenario {None, FailAfterSend, FailAfterRecv, FailAfterSendInExtend, FailAfterRecvInExtend, FailAfterIntervalFail};
-  
+  enum class FailScenario {None, FailAfterSend, FailAfterRecv, 
+                           FailAfterSendInExtend, FailAfterRecvInExtend, 
+                           FailAfterIntervalFail};
 
   ChainServer() { bank_update_seq_ = 0; };
   ChainServer(string bank_id) : bank_id_(bank_id) { bank_update_seq_ = 0; }
@@ -55,12 +56,15 @@ class ChainServer {
   ChainServer::UpdateBalanceOutcome update_balance(const proto::Request& req);
   void insert_processed_list(const proto::Request& req);
   void insert_sent_list(const proto::Request& req);
-  void pop_sent_list(string req_id);
+  void pop_sent_list();
   void write_log_reply(const proto::Reply& reply);
   
   void if_server_crash();
   void to_be_head();
   void to_be_tail();
+  void receive_new_preserver(const proto::Address& pre_addr);
+  void receive_new_succserver(const proto::Reqseq& req_seq);
+  void receive_extend_server(const proto::Address& extend_addr);
 
   // getter/setter
   void set_bank_id(string bank_id) { bank_id_ = bank_id; };
@@ -87,13 +91,21 @@ class ChainServer {
   FailScenario fail_scenario() { return fail_scenario_; };
   void set_fail_seq(int fail_seq) { fail_seq_ = fail_seq; };
   int fail_seq() { return fail_seq_; };
+  bool internal_crashing() { return internal_crashing_; };
+  void set_internal_crashing(bool internal_crashing) { internal_crashing_ = internal_crashing; };
+  bool extending_chain() { return extending_chain_; };
+  void set_extending_chain(bool extending_chain) { extending_chain_ = extending_chain; };
+  bool finish_sending_hist() { return finish_sending_hist_; };
+  void set_finish_sending_hist(bool finish_sending_hist) { finish_sending_hist_ = finish_sending_hist; };
 
  private:
   string bank_id_;
   Bank bank_;
   bool ishead_;
   bool istail_;
-  //bool extending_chain_;
+  bool extending_chain_;
+  bool finish_sending_hist_;
+  bool internal_crashing_;
   int start_delay_;  // in sec
   FailScenario fail_scenario_;
   int fail_seq_;

@@ -145,6 +145,7 @@ class Master {
     auto it = client_list_.insert(std::make_pair(client_id, client_addr));
     assert(it.second);
   }
+  void handle_join(const proto::Join& join);
 
   // getter/setter
   void set_addr(proto::Address addr) { addr_ = addr; };
