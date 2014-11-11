@@ -1,3 +1,4 @@
+#include <list>
 #include "server.h"
 
 #include <boost/program_options.hpp>
@@ -150,7 +151,53 @@ void ChainServer::receive_extend_server(const proto::Address& extend_addr) {
   extending_chain_ = true;
   finish_sending_hist_ = false;
   succ_server_addr_ = extend_addr;
-  // send history request to extended server (need another thread)  
+  std::thread send_req_to_extend_server_thread(send_req_to_extend_server);
+  send_req_to_extend_server_thread.detach();
+}
+
+// Current Tail send request in the processed_list or sent_list to extended server
+void send_req_to_extend_server() {
+  // deep copy cs->bank().account_map(), cs->processed_list(), lock?
+  std::list<proto::Account*> account_map_copy;
+  for (auto& it : cs->bank().account_map()) {
+    auto *account = new proto::Account;
+    account->set_account_id(it.second.accountid());
+    account->set_balance(it.second.balance());
+    account_map_copy.push_back(account);
+  }
+  std::list<proto::Request*> processed_map_copy;
+  for (auto& it : cs->processed_map()) {
+    auto *req = new proto::Request;
+    req->CopyFrom(it.second);  
+    processed_map_copy.push_back(req);
+  }
+  // send account info
+  for (auto& it : account_map_copy) {
+    proto::ExtendMsg extend_msg;
+    extend_msg.set_type(proto::ExtendMsg::ACCOUNT);
+    extend_msg.set_allocated_account(it);
+    send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg);
+  }
+  // send request in the processed_list
+  for (auto& it : processed_map_copy) {
+    proto::ExtendMsg extend_msg;
+    extend_msg.set_type(proto::ExtendMsg::HISTORY);
+    extend_msg.set_allocated_request(it);
+    send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg);
+  }
+  cs->set_finish_sending_hist(true);
+  // send request in the sent_list, lock main thread of tail dealing new request
+  for (auto& it : cs->sent_list()) {
+    auto *req = new proto::Request;
+    req->CopyFrom(it); 
+    proto::ExtendMsg extend_msg;
+    extend_msg.set_type(proto::ExtendMsg::SENT);
+    extend_msg.set_allocated_request(req);
+    send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg);
+  }
+  cs->set_extending_chain(false);
+  cs->set_finish_sending_hist(false);
+  cs->set_istail(false);
 }
 
 // Server crash scenario
@@ -247,6 +294,8 @@ void ChainServer::receive_request(proto::Request* req) {
     head_handle_update(req);
     return;
   }
+  // when tail is sending request in the sent_list in the extending stage, should wait here?
+  
   // only one server
   if (ishead_ && istail_) {
     bank_update_seq_++;  // sequence of update request
@@ -306,13 +355,14 @@ void ChainServer::single_handle_update(proto::Request* req) {
     insert_sent_list(*req);
     
   reply_to_client(*req);
-  
+  /*
   if (extending_chain_ && finish_sending_hist_) {
     // forward request in the sent_list to succ server
     istail_ = false;
     extending_chain_ = false;
     finish_sending_hist_ = false;
   }
+  */
 }
 
 // tail server handle update request
@@ -331,7 +381,7 @@ void ChainServer::tail_handle_update(proto::Request* req) {
   proto::Acknowledge ack;
   ack.set_bank_update_seq(req->bank_update_seq());
   sendback_ack(ack);
-  
+  /*
   if (extending_chain_ && finish_sending_hist_) {
     // forward request in the sent_list to succ server
     
@@ -339,6 +389,7 @@ void ChainServer::tail_handle_update(proto::Request* req) {
     extending_chain_ = false;
     finish_sending_hist_ = false;
   } 
+  */
 }
 
 // interval server handle update request

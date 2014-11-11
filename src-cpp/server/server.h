@@ -97,6 +97,8 @@ class ChainServer {
   void set_extending_chain(bool extending_chain) { extending_chain_ = extending_chain; };
   bool finish_sending_hist() { return finish_sending_hist_; };
   void set_finish_sending_hist(bool finish_sending_hist) { finish_sending_hist_ = finish_sending_hist; };
+  unordered_map<string, proto::Request> processed_map() { return processed_map_;}
+  deque<proto::Request> sent_list() { return sent_list_; }
 
  private:
   string bank_id_;
@@ -137,6 +139,7 @@ bool get_server_json_with_chainno(Json::Value server_list_json,
 bool get_alive_server_json_with_chainno(Json::Value server_list_json,
                                   	Json::Value& result_server_json,
                                   	int chainno);
+void send_req_to_extend_server();                          
 
 #endif
 
