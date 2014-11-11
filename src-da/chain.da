@@ -279,6 +279,18 @@ class Server(process):
         self.if_server_crash()
         self.server_output("Notified to be tail server")
         self.is_tail = True
+
+        ack_req = None # last req in sent list
+        if len(self.sent) > 0:
+            ack_req = self.sent[-1]
+
+        while len(self.sent) > 0:
+            req = self.sent.popleft()
+            self.insert_processed_list(req)
+
+        if not self.is_head and ack_req:
+            self.send_ack(ack_req)
+
         self.server_output("Ready to be tail server")
 
     def receive(msg=('NEW_SUCC_SERVER', server), from_=m):
