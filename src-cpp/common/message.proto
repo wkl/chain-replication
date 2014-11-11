@@ -17,6 +17,7 @@ message Message {
 		REQ_SEQ = 11;
 		JOIN = 12;
 		EXTEND_SERVER = 13;
+		EXTEND_MSG = 14;
 	}
 	required MessageType type = 1;
 	optional Request request = 2;
@@ -27,6 +28,7 @@ message Message {
 	optional Notify notify = 7;
 	optional Reqseq reqseq = 8;
 	optional Join join = 9;
+	optional ExtendMsg extendmsg = 10;
 }
 
 message Address {
@@ -68,7 +70,7 @@ message Reply {
 	}
 	required string req_id = 1;
 	required Outcome outcome = 2;
-        required string account_id = 3;
+  required string account_id = 3;
 	optional float balance = 4;
 }
 
@@ -98,3 +100,12 @@ message Join {
 	required Address server_addr = 2;
 }
 
+message ExtendMsg {
+  enum Type {
+    HISTORY = 0;
+    SENT = 1;
+    FIN = 2;
+  }
+  required Type type = 1;
+  optional Request request = 2;
+}
