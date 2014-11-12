@@ -228,6 +228,7 @@ void ChainServer::receive_extend_msg(const proto::ExtendMsg& extend_msg) {
     return;
   }
   if (extend_msg.type() == proto::ExtendMsg::SENT) {
+    assert(extend_msg.has_request());
     proto::Request req = extend_msg.request();
     update_request_reply(&req);
     write_log_reply(req.reply());
@@ -237,6 +238,15 @@ void ChainServer::receive_extend_msg(const proto::ExtendMsg& extend_msg) {
       return;
   }
   if (extend_msg.type() == proto::ExtendMsg::FIN) {
+    istail_ = true;
+    proto::ExtendFinish extend_finish;
+    extend_finish.set_bank_id(bank_id_);
+    auto *local_addr = new proto::Address;
+    local_addr->CopyFrom(local_addr_);
+    extend_finish.set_allocated_server_addr(local_addr);
+    send_msg_tcp(master_addr, proto::Message::EXTEND_FINISH, extend_finish);
+    LOG(INFO) << "Server begin to act as the tail server, notify master server"
+              << endl << endl;    
     return;
   }
 }

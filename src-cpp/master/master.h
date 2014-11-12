@@ -146,6 +146,7 @@ class Master {
     assert(it.second);
   }
   void handle_join(const proto::Join& join);
+  void handle_extend_finish(const proto::ExtendFinish& extend_finish);
 
   // getter/setter
   void set_addr(proto::Address addr) { addr_ = addr; };

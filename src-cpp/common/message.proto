@@ -18,6 +18,7 @@ message Message {
 		JOIN = 12;
 		EXTEND_SERVER = 13;
 		EXTEND_MSG = 14;
+		EXTEND_FINISH = 15;
 	}
 	required MessageType type = 1;
 	optional Request request = 2;
@@ -29,6 +30,7 @@ message Message {
 	optional Reqseq reqseq = 8;
 	optional Join join = 9;
 	optional ExtendMsg extendmsg = 10;
+	optional ExtendFinish extend_finish = 11;
 }
 
 message Address {
@@ -115,4 +117,9 @@ message ExtendMsg {
   required Type type = 1;
   optional Request request = 2;
   optional Account account = 3;
+}
+
+message ExtendFinish {
+	required string bank_id = 1;
+	required Address server_addr = 2;
 }

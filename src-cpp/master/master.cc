@@ -28,6 +28,10 @@ void MasterTCPLoop::handle_msg(proto::Message& msg, proto::Address& from_addr) {
       assert(msg.has_join());
       master->handle_join(msg.join());
       break;
+    case proto::Message::EXTEND_FINISH:
+      assert(msg.has_extend_finish());
+      master->handle_extend_finish(msg.extend_finish());
+      break;      
     default:
       LOG(ERROR) << "no handler for message type (" << msg.type() << ")" << endl
                  << endl;
@@ -83,6 +87,28 @@ void Master::handle_join(const proto::Join& join) {
             << endl << endl;
   send_msg_tcp(bsc.pre_server_addr(node), proto::Message::EXTEND_SERVER,
                join.server_addr()); 
+}
+
+// master receive msg of extending finish from extended server
+void Master::handle_extend_finish(const proto::ExtendFinish& extend_finish) {
+  BankServerChain& bsc = get_bank_server_chain_by_id(extend_finish.bank_id());
+  Node node(extend_finish.server_addr().ip(), extend_finish.server_addr().port());
+  bsc.set_tail(node);
+  LOG(INFO) << "Receive msg from extended server "
+            << extend_finish.server_addr().ip() << ":" << extend_finish.server_addr().port()
+            <<" that it begins to act as tail server"
+            << endl << endl;
+  proto::Notify notify;
+  auto *new_tail_addr = new proto::Address;
+  new_tail_addr->CopyFrom(extend_finish.server_addr());
+  notify.set_bank_id(bsc.bank_id());
+  notify.set_allocated_server_addr(new_tail_addr);
+  for(const auto& it : master->client_list()) {
+      send_msg_udp(master->addr(), it.second, proto::Message::NEW_TAIL, notify);
+  }   
+  LOG(INFO) << "Notify all the clients of the new tail server" 
+            << " of bank " << bsc.bank_id()
+            << endl << endl;       
 }
 
 bool Node::become_crashed() {
