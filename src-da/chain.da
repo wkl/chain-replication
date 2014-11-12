@@ -242,7 +242,7 @@ class Server(process):
     def main():
         if config.start_delay > 0:
             time.sleep(config.start_delay)
-            self.server_output("===== sending join request =====")
+            self.server_output("====== sending join request ======")
             send(('JOIN_CHAIN_REQUEST', server_id, bank_id), to=master)
 
         # wakeup to send heartbeat
@@ -262,11 +262,14 @@ class Server(process):
         self.server_output("(%d) Received ACK %s" % (self.recv_msg_seq, ack))
         req = None
 
-        # move request from sent list to processed list on ACK event
-        while len(self.sent) and self.sent[0].bank_update_seq <= ack.bank_update_seq:
-            req = self.sent.popleft()
-            self.server_output("remove request %s from sent list" % req.req_id)
-            self.insert_processed_list(req)
+        with self.snapshot_lock:
+            # move request from sent list to processed list on ACK event
+            while len(self.sent) and \
+                    self.sent[0].bank_update_seq <= ack.bank_update_seq:
+                req = self.sent.popleft()
+                self.server_output("remove request %s from sent list"
+                                   % req.req_id)
+                self.insert_processed_list(req)
 
         # output("sent list: %s" % self.sent)
         if not self.is_head and req:
