@@ -94,7 +94,7 @@ class Node:
         return not self.__eq__(other)
 
     def __str__(self):
-        return "%s-%d" % (self.bank_id, self.server_id)
+        return "[%s-%d]" % (self.bank_id, self.server_id)
 
 class BankServerChain:
     def __init__(self, bank_id, servers):
