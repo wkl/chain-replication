@@ -54,7 +54,7 @@
             "ip": "127.0.0.1",
             "port": 60001,
             "waittimeout": 5,
-            "resendnum": 3,
+            "resendnum": 5,
             "resend_newhead": true,
             "requests": [
                 {

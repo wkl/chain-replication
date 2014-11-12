@@ -384,9 +384,12 @@ int read_config_client(string dir, vector<Client>& client_vector) {
     client.set_request_vector(request_vector);
     string drop_interval = root[JSON_CONFIG][JSON_UDP_DROP_INTERVAL].asString();
     if (drop_interval == JSON_RANDOM)
-      client.set_drop_interval(rand() % request_vector.size()); // TODO: has problem if requests are randomly generated
+      client.set_drop_interval((rand() % (request_vector.size() - 2) + 2));
     else
       client.set_drop_interval(std::atoi(drop_interval.c_str()));
+    LOG(INFO) << "Client " << client.clientid() 
+              << ": drop reply interval is " << client.drop_interval() 
+              << endl << endl;
     client.set_recv_count(0);
     client_vector.push_back(client);
   }

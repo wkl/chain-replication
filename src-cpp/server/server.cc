@@ -798,6 +798,7 @@ int read_config_server(string dir, string bankid, int chainno) {
     return 1;
   }
 
+  srand((unsigned)time(0));
   bool find_bank = false;
   Json::Value bank_list_json = root[JSON_BANKS];
   for (unsigned int i = 0; i < bank_list_json.size(); i++) {
@@ -846,8 +847,11 @@ int read_config_server(string dir, string bankid, int chainno) {
         cs->set_fail_seq(-1);
       else {
         string fail_seq = server_json[JSON_FAIL_SEQ].asString();
-        if (fail_seq == JSON_RANDOM)
-          cs->set_fail_seq(-1);  // TODO: use some reasonable random data
+        if (fail_seq == JSON_RANDOM) {
+          cs->set_fail_seq((rand() % 7) + 2);  // use some reasonable random data
+          LOG(INFO) << "Randomly generate server fail_seq=" << cs->fail_seq()
+                    << endl << endl;
+        }
         else
           cs->set_fail_seq(std::atoi(fail_seq.c_str()));
       }

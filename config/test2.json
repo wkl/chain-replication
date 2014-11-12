@@ -3,7 +3,7 @@
         "server_report_interval": 1,
         "server_fail_timeout": 3,
         "tcp_timeout": 1,
-	      "udp_drop_interval": "0"
+	      "udp_drop_interval": "random"
     },
     "master": {
         "ip": "127.0.0.1",
@@ -19,7 +19,7 @@
                     "chainno": 1,
                     "startdelay": 0,
                     "failscenario": "fail_after_recv",
-                    "failseq": "2"
+                    "failseq": "random"
                 },
                 {
                     "ip": "127.0.0.1",
@@ -44,7 +44,7 @@
             "ip": "127.0.0.1",
             "port": 60001,
             "waittimeout": 2,
-            "resendnum": 3,
+            "resendnum": 5,
             "resend_newhead": true,
             "requests": [
                 {

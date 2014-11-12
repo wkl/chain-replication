@@ -13,7 +13,8 @@ server/server -c ../config/test2.json -b bank1 -n 1
 server/server -c ../config/test2.json -b bank1 -n 2
 server/server -c ../config/test2.json -b bank1 -n 3
 
-original chain length is 3, header fails after receiving 2 msgs
+original chain length is 2, client's drop reply interval is random,
+header fails after receiving random msgs
 
 
 
@@ -145,3 +146,13 @@ server/server -c ../config/test14.json -b bank1 -n 4
 
 original chain length is 3, 4th server is extending server, 
 but current tail 3rd server fails during chain extension 
+
+
+
+test15:  
+master/master -c ../config/test1.json
+server/server -c ../config/test1.json -b bank1 -n 1
+server/server -c ../config/test1.json -b bank1 -n 2
+
+original chain length is 2, header fails after sending 2 msgs,
+client doesn't try new head during resend
