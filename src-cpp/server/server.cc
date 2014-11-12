@@ -179,12 +179,21 @@ void send_req_to_extend_server() {
     req->CopyFrom(it.second);  
     processed_map_copy.push_back(req);
   }
+  // send start msg
+  proto::ExtendMsg extend_msg_start;
+  extend_msg_start.set_type(proto::ExtendMsg::START);
+  auto *local_addr = new proto::Address;
+  local_addr->CopyFrom(cs->local_addr());
+  extend_msg_start.set_allocated_server_addr(local_addr);
+  send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg_start);
+  std::this_thread::sleep_for(std::chrono::seconds(cs->extend_send_delay()));
   // send account info
   for (auto& it : account_map_copy) {
     proto::ExtendMsg extend_msg;
     extend_msg.set_type(proto::ExtendMsg::ACCOUNT);
     extend_msg.set_allocated_account(it);
     send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg);
+    std::this_thread::sleep_for(std::chrono::seconds(cs->extend_send_delay()));
   }
   // send request in the processed_list
   for (auto& it : processed_map_copy) {
@@ -192,6 +201,7 @@ void send_req_to_extend_server() {
     extend_msg.set_type(proto::ExtendMsg::HISTORY);
     extend_msg.set_allocated_request(it);
     send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg);
+    std::this_thread::sleep_for(std::chrono::seconds(cs->extend_send_delay()));
   }
   cs->set_finish_sending_hist(true);
   // send request in the sent_list, lock main thread of tail dealing new request
@@ -204,9 +214,9 @@ void send_req_to_extend_server() {
     send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg);
   }
   // send fin to extend server
-  proto::ExtendMsg extend_msg;
-  extend_msg.set_type(proto::ExtendMsg::FIN);
-  send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg);
+  proto::ExtendMsg extend_msg_fin;
+  extend_msg_fin.set_type(proto::ExtendMsg::FIN);
+  send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg_fin);
   // stop acting as a tail server
   LOG(INFO) << "Stop acting as the tail server" 
             << endl << endl;
@@ -217,6 +227,14 @@ void send_req_to_extend_server() {
 
 // extend server receive request(account, processed_list, sent_list, fin) from current tail
 void ChainServer::receive_extend_msg(const proto::ExtendMsg& extend_msg) {
+  if (extend_msg.type() == proto::ExtendMsg::START) {
+    // TODO: clear processed_list, bank_update_seq, pre_server_addr, bank.account
+    cs->set_pre_server_addr(extend_msg.server_addr());
+    LOG(INFO) << "Server begins to receive history records from current tail server " 
+              << cs->pre_server_addr().ip() << ":" << cs->pre_server_addr().port()
+              << endl << endl;
+    return;
+  }
   if (extend_msg.type() == proto::ExtendMsg::ACCOUNT) {
     assert(extend_msg.has_account());
     create_account(extend_msg.account());
@@ -224,11 +242,17 @@ void ChainServer::receive_extend_msg(const proto::ExtendMsg& extend_msg) {
   }
   if (extend_msg.type() == proto::ExtendMsg::HISTORY) {
     assert(extend_msg.has_request());
+    // update bank_update_seq_
+    if (extend_msg.request().bank_update_seq() > bank_update_seq_)
+      bank_update_seq_ = extend_msg.request().bank_update_seq();
     insert_processed_list(extend_msg.request());
     return;
   }
   if (extend_msg.type() == proto::ExtendMsg::SENT) {
     assert(extend_msg.has_request());
+    // update bank_update_seq_
+    if (extend_msg.request().bank_update_seq() > bank_update_seq_)
+      bank_update_seq_ = extend_msg.request().bank_update_seq();    
     proto::Request req = extend_msg.request();
     update_request_reply(&req);
     write_log_reply(req.reply());
@@ -532,6 +556,10 @@ bool ChainServer::create_account(const proto::Account& account) {
   auto it_insert =
         bank_.account_map().insert(std::make_pair(accountObject.accountid(), accountObject));
   assert(it_insert.second);
+  LOG(INFO) << "Server create account with account_id=" 
+            << account.account_id() 
+            << ", balance=" << account.balance() 
+            << endl << endl;
   return true;
 }
 
@@ -649,6 +677,9 @@ void heartbeat() {
   
   if (cs->start_delay() > 0) {  // for extended servers
     std::this_thread::sleep_for(std::chrono::seconds(cs->start_delay()));
+    LOG(INFO) << "Extended Server starts up after " 
+              << cs->start_delay() << " sec delay" 
+              << endl << endl;
     proto::Join join;
     join.set_bank_id(cs->bank_id());
     auto *local_addr_copy = new proto::Address;
@@ -705,6 +736,11 @@ int read_config_server(string dir, string bankid, int chainno) {
       cs->set_start_delay(server_json[JSON_START_DEALY].asInt());
       heartbeat_interval = root[JSON_CONFIG][JSON_SERVER_REPORT_INTERVAL].asInt();
       tcp_timeout = root[JSON_CONFIG][JSON_TCP_TIMEOUT].asInt();
+      if (!root[JSON_CONFIG].isMember(JSON_EXTEND_SEND_DELAY))
+        cs->set_extend_send_delay(0);
+      else {
+        cs->set_extend_send_delay(root[JSON_CONFIG][JSON_EXTEND_SEND_DELAY].asInt());
+      }
       string fail_scenario = server_json[JSON_FAIL_SCENARIO].asString();
       if (fail_scenario == JSON_NONE)
         cs->set_fail_scenario(ChainServer::FailScenario::None);

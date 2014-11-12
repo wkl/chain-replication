@@ -113,10 +113,12 @@ message ExtendMsg {
     HISTORY = 1;
     SENT = 2;
     FIN = 3;
+    START = 4;
   }
   required Type type = 1;
   optional Request request = 2;
   optional Account account = 3;
+  optional Address server_addr = 4;
 }
 
 message ExtendFinish {

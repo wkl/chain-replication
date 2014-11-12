@@ -101,6 +101,8 @@ class ChainServer {
   void set_finish_sending_hist(bool finish_sending_hist) { finish_sending_hist_ = finish_sending_hist; };
   unordered_map<string, proto::Request> processed_map() { return processed_map_;}
   deque<proto::Request> sent_list() { return sent_list_; }
+  void set_extend_send_delay(int extend_send_delay) { extend_send_delay_ = extend_send_delay; };
+  int extend_send_delay() { return extend_send_delay_; };
 
  private:
   string bank_id_;
@@ -108,9 +110,10 @@ class ChainServer {
   bool ishead_;
   bool istail_;
   bool extending_chain_;  // for current tail server during extending chain
-  bool finish_sending_hist_;
+  bool finish_sending_hist_;  // for current tail server during extending chain
   bool internal_crashing_;
   int start_delay_;  // in sec
+  int extend_send_delay_; // in sec
   FailScenario fail_scenario_;
   int fail_seq_;
   // <"reqid_accountid", request>

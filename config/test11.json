@@ -1,9 +1,10 @@
 {
     "config": {
         "server_report_interval": 1,
-        "server_fail_timeout": 2,
+        "server_fail_timeout": 3,
         "tcp_timeout": 1,
-        "udp_lostseq_interval": "3"
+        "udp_drop_interval": "0",
+        "extend_send_delay": 1
     },
     "master": {
         "ip": "127.0.0.1",
@@ -33,7 +34,7 @@
                     "ip": "127.0.0.1",
                     "port": 50003,
                     "chainno": 3,
-                    "startdelay": 1,
+                    "startdelay": 3,
                     "failscenario": "none"
                 }
             ]
@@ -48,7 +49,7 @@
             "resendnum": 3,
             "resend_newhead": true,
             "requests": [
-                 {
+                {
                     "bankid": "bank1",
                     "accountid": "account1",
                     "seq": 1,
@@ -82,7 +83,42 @@
                     "seq": 5,
                     "type": "WITHDRAW",
                     "amount": 400
-                }
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "seq": 6,
+                    "type": "DEPOSIT",
+                    "amount": 10000
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "seq": 7,
+                    "type": "WITHDRAW",
+                    "amount": 1000
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "seq": 8,
+                    "type": "WITHDRAW",
+                    "amount": 2000
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "seq": 9,
+                    "type": "WITHDRAW",
+                    "amount": 3000
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "seq": 10,
+                    "type": "WITHDRAW",
+                    "amount": 4000
+                }                
             ]
         }
     ]

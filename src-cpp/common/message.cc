@@ -41,7 +41,7 @@ void TCPLoop::run_forever() {
 }
 
 void TCPLoop::session(tcp::socket sock) {
-  try {
+  //try {
     // read header (the body size)
     char header[MSG_HEADER_SIZE];
     boost::system::error_code error;
@@ -76,10 +76,15 @@ void TCPLoop::session(tcp::socket sock) {
     from_addr.set_ip(sock.remote_endpoint().address().to_string());
     from_addr.set_port(sock.remote_endpoint().port());
 
-    handle_msg(msg, from_addr);
-  } catch (std::exception &e) {
-    std::cerr << "Exception in thread: " << e.what() << std::endl;
-  }
+    //try {
+      handle_msg(msg, from_addr);
+    //} catch (std::exception &e) {
+    //  std::cerr << "Exception in thread of handle_msg: " << e.what() << std::endl;
+    //  throw e;
+    //}
+  //} catch (std::exception &e) {
+  //  std::cerr << "Exception in thread: " << e.what() << std::endl;
+  //} 
 }
 
 // prefix serialized message(body) with its size

@@ -51,6 +51,7 @@
 #define JSON_PROBQUERY "probquery"
 #define JSON_PROBDEPOSIT "probdeposit"
 #define JSON_PROBWITHDRAW "probwithdraw"
+#define JSON_EXTEND_SEND_DELAY "extend_send_delay"
 
 
 // global
