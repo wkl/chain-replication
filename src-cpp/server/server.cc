@@ -64,10 +64,6 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg,
       assert(msg.has_reqseq());
       cs->receive_new_succserver(msg.reqseq());
       break;      
-    case proto::Message::NEW_TAIL_READY:
-      assert(msg.has_addr());
-      // cs->to_be_head();
-      break;
     case proto::Message::EXTEND_SERVER:
       assert(msg.has_addr());
       cs->receive_extend_server(msg.addr());
@@ -76,6 +72,9 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg,
       assert(msg.has_extendmsg());
       cs->receive_extend_msg(msg.extendmsg());
       break;
+    case proto::Message::EXTEND_FAIL:
+      cs->extending_server_fail();
+      break;      
     default:
       LOG(ERROR) << "no handler for message type (" << msg.type() << ")" << endl
                  << endl;
@@ -185,14 +184,34 @@ void send_req_to_extend_server() {
   auto *local_addr = new proto::Address;
   local_addr->CopyFrom(cs->local_addr());
   extend_msg_start.set_allocated_server_addr(local_addr);
-  send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg_start);
+  bool send_res = send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg_start);
+  if (!send_res) {
+    LOG(INFO) << "Server can't get connect to new extended server, give up"
+              << endl << endl;
+    return;
+  }
+  else {
+    LOG(INFO) << "Server sent tcp message to " << cs->succ_server_addr().ip() << ":"
+              << cs->succ_server_addr().port()
+              << endl << extend_msg_start.ShortDebugString() << endl << endl;  
+  }
   std::this_thread::sleep_for(std::chrono::seconds(cs->extend_send_delay()));
   // send account info
   for (auto& it : account_map_copy) {
     proto::ExtendMsg extend_msg;
     extend_msg.set_type(proto::ExtendMsg::ACCOUNT);
     extend_msg.set_allocated_account(it);
-    send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg);
+    send_res = send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg);
+    if (!send_res) {
+      LOG(INFO) << "Server can't get connect to new extended server, give up"
+                << endl << endl;
+      return;
+    }
+    else {
+      LOG(INFO) << "Server sent tcp message to " << cs->succ_server_addr().ip() << ":"
+                << cs->succ_server_addr().port()
+                << endl << extend_msg.ShortDebugString() << endl << endl;  
+    }    
     std::this_thread::sleep_for(std::chrono::seconds(cs->extend_send_delay()));
   }
   // send request in the processed_list
@@ -200,7 +219,17 @@ void send_req_to_extend_server() {
     proto::ExtendMsg extend_msg;
     extend_msg.set_type(proto::ExtendMsg::HISTORY);
     extend_msg.set_allocated_request(it);
-    send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg);
+    send_res = send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg);
+    if (!send_res) {
+      LOG(INFO) << "Server can't get connect to new extended server, give up"
+                << endl << endl;
+      return;
+    }    
+    else {
+      LOG(INFO) << "Server sent tcp message to " << cs->succ_server_addr().ip() << ":"
+                << cs->succ_server_addr().port()
+                << endl << extend_msg.ShortDebugString() << endl << endl;  
+    }      
     std::this_thread::sleep_for(std::chrono::seconds(cs->extend_send_delay()));
   }
   cs->set_finish_sending_hist(true);
@@ -211,18 +240,39 @@ void send_req_to_extend_server() {
     proto::ExtendMsg extend_msg;
     extend_msg.set_type(proto::ExtendMsg::SENT);
     extend_msg.set_allocated_request(req);
-    send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg);
+    send_res = send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg);
+    if (!send_res) {
+      LOG(INFO) << "Server can't get connect to new extended server, give up"
+                << endl << endl;
+      return;
+    } 
+    else {
+      LOG(INFO) << "Server sent tcp message to " << cs->succ_server_addr().ip() << ":"
+                << cs->succ_server_addr().port()
+                << endl << extend_msg.ShortDebugString() << endl << endl;  
+    }          
   }
   // send fin to extend server
   proto::ExtendMsg extend_msg_fin;
   extend_msg_fin.set_type(proto::ExtendMsg::FIN);
-  send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg_fin);
+  send_res = send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg_fin);
+  if (!send_res) {
+    LOG(INFO) << "Server can't get connect to new extended server, give up"
+              << endl << endl;
+    return;
+  }  
+  else {
+    LOG(INFO) << "Server sent tcp message to " << cs->succ_server_addr().ip() << ":"
+              << cs->succ_server_addr().port()
+              << endl << extend_msg_fin.ShortDebugString() << endl << endl;  
+  }  
   // stop acting as a tail server
-  LOG(INFO) << "Stop acting as the tail server" 
+  LOG(INFO) << "Stop acting as the tail server, sent list is cleared" 
             << endl << endl;
   cs->set_extending_chain(false);
   cs->set_finish_sending_hist(false);
   cs->set_istail(false);
+  cs->sent_list().clear();
 }
 
 // extend server receive request(account, processed_list, sent_list, fin) from current tail
@@ -273,6 +323,15 @@ void ChainServer::receive_extend_msg(const proto::ExtendMsg& extend_msg) {
               << endl << endl;    
     return;
   }
+}
+
+// current tail server is notified new extending server is crashed
+void ChainServer::extending_server_fail() {
+  cs->set_extending_chain(false);
+  cs->set_finish_sending_hist(false);
+  cs->sent_list().clear(); 
+  LOG(INFO) << "Notified that the new extending server is crashed, sent list is cleared"
+            << endl << endl;
 }
 
 // Server crash scenario

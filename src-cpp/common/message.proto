@@ -19,6 +19,7 @@ message Message {
 		EXTEND_SERVER = 13;
 		EXTEND_MSG = 14;
 		EXTEND_FINISH = 15;
+		EXTEND_FAIL = 16;
 	}
 	required MessageType type = 1;
 	optional Request request = 2;

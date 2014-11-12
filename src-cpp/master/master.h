@@ -90,6 +90,12 @@ class BankServerChain {
     tail_.set_ip(ip);
     tail_.set_port(port);
   };
+  
+  void set_extending(Node node) { extending_.CopyFrom(node.addr()); }
+  void set_extending(string ip, int port) {
+    extending_.set_ip(ip);
+    extending_.set_port(port);
+  };  
 
   proto::Address succ_server_addr(Node& node) {
     assert(node != tail_);
@@ -113,6 +119,7 @@ class BankServerChain {
 
   proto::Address& head() { return head_; };
   proto::Address& tail() { return tail_; };
+  proto::Address& extending() { return extending_; };
 
   Node* get_node(const proto::Address& addr);
   list<Node>& server_chain() { return server_chain_; };
@@ -124,6 +131,7 @@ class BankServerChain {
   string bank_id_;
   proto::Address head_;
   proto::Address tail_;
+  proto::Address extending_;
   list<Node> server_chain_;
 };
 

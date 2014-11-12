@@ -87,6 +87,7 @@ void Master::handle_join(const proto::Join& join) {
             << endl << endl;
   send_msg_tcp(bsc.pre_server_addr(node), proto::Message::EXTEND_SERVER,
                join.server_addr()); 
+  bsc.set_extending(node);             
 }
 
 // master receive msg of extending finish from extended server
@@ -94,6 +95,8 @@ void Master::handle_extend_finish(const proto::ExtendFinish& extend_finish) {
   BankServerChain& bsc = get_bank_server_chain_by_id(extend_finish.bank_id());
   Node node(extend_finish.server_addr().ip(), extend_finish.server_addr().port());
   bsc.set_tail(node);
+  Node emptyNode("", 0);
+  bsc.set_extending(emptyNode);
   LOG(INFO) << "Receive msg from extended server "
             << extend_finish.server_addr().ip() << ":" << extend_finish.server_addr().port()
             <<" that it begins to act as tail server"
@@ -173,22 +176,24 @@ void notify_crash(BankServerChain& bsc, Node& node) {
     LOG(INFO) << "Notify all the clients of the new tail server" 
               << " of bank " << bsc.bank_id()
               << endl << endl;                
-  } else if (node != bsc.head() && node != bsc.tail()) {  // internal crashed
-    /*
-    send_msg_tcp(bsc.pre_server_addr(node), proto::Message::NEW_SUCC_SERVER,
-                 bsc.succ_server_addr(node));
-    send_msg_tcp(bsc.succ_server_addr(node), proto::Message::NEW_PRE_SERVER,
-                 bsc.pre_server_addr(node));
-    bsc.remove_node(node);
-    */
+  } else if (node != bsc.head() && node != bsc.tail() && node!=bsc.extending()) {  // internal crashed
     send_msg_tcp(bsc.succ_server_addr(node), proto::Message::NEW_PRE_SERVER,
                  bsc.pre_server_addr(node));
     bsc.remove_node(node);
     LOG(INFO) << "Notify S+ server of bank " << bsc.bank_id() 
               << " that S server has crashed" 
               << endl <<endl;
-  } else {
-    assert(0);
+  } else {  // extending server crashed
+    assert(node==bsc.extending());
+    proto::Message empty_msg;
+    send_msg_tcp(bsc.pre_server_addr(node), proto::Message::EXTEND_FAIL,
+                 empty_msg); 
+    bsc.remove_node(node);
+    Node emptyNode("", 0);
+    bsc.set_extending(emptyNode);  
+    LOG(INFO) << "Notify current tail server of bank " << bsc.bank_id()
+              << " that new extending server has crashed"
+              << endl << endl;
   }
 }
 

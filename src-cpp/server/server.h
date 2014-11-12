@@ -67,6 +67,7 @@ class ChainServer {
   void receive_new_succserver(const proto::Reqseq& req_seq);
   void receive_extend_server(const proto::Address& extend_addr);
   void receive_extend_msg(const proto::ExtendMsg& extend_msg);
+  void extending_server_fail();
 
   // getter/setter
   void set_bank_id(string bank_id) { bank_id_ = bank_id; };
