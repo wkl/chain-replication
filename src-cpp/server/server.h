@@ -52,6 +52,7 @@ class ChainServer {
   proto::Request_CheckRequest check_update_request(const proto::Request& req,
                                                    proto::Reply* reply);
   Account& get_or_create_account(const proto::Request& req, bool& new_account);
+  bool create_account(const proto::Account& account);
   bool req_consistent(const proto::Request& req1, const proto::Request& req2);
   ChainServer::UpdateBalanceOutcome update_balance(const proto::Request& req);
   void insert_processed_list(const proto::Request& req);
@@ -65,6 +66,7 @@ class ChainServer {
   void receive_new_preserver(const proto::Address& pre_addr);
   void receive_new_succserver(const proto::Reqseq& req_seq);
   void receive_extend_server(const proto::Address& extend_addr);
+  void receive_extend_msg(const proto::ExtendMsg& extend_msg);
 
   // getter/setter
   void set_bank_id(string bank_id) { bank_id_ = bank_id; };
@@ -105,7 +107,7 @@ class ChainServer {
   Bank bank_;
   bool ishead_;
   bool istail_;
-  bool extending_chain_;
+  bool extending_chain_;  // for current tail server during extending chain
   bool finish_sending_hist_;
   bool internal_crashing_;
   int start_delay_;  // in sec

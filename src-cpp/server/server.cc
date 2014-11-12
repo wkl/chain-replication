@@ -72,6 +72,10 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg,
       assert(msg.has_addr());
       cs->receive_extend_server(msg.addr());
       break;
+    case proto::Message::EXTEND_MSG:
+      assert(msg.has_extendmsg());
+      cs->receive_extend_msg(msg.extendmsg());
+      break;
     default:
       LOG(ERROR) << "no handler for message type (" << msg.type() << ")" << endl
                  << endl;
@@ -151,11 +155,15 @@ void ChainServer::receive_extend_server(const proto::Address& extend_addr) {
   extending_chain_ = true;
   finish_sending_hist_ = false;
   succ_server_addr_ = extend_addr;
+  LOG(INFO) << "Notified a new server " 
+            << extend_addr.ip() << ":" << extend_addr.port() 
+            << " want to join" 
+            << endl << endl;
   std::thread send_req_to_extend_server_thread(send_req_to_extend_server);
   send_req_to_extend_server_thread.detach();
 }
 
-// Current Tail send request in the processed_list or sent_list to extended server
+// Current Tail send request(account, processed_list, sent_list, fin) to extended server
 void send_req_to_extend_server() {
   // deep copy cs->bank().account_map(), cs->processed_list(), lock?
   std::list<proto::Account*> account_map_copy;
@@ -195,9 +203,42 @@ void send_req_to_extend_server() {
     extend_msg.set_allocated_request(req);
     send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg);
   }
+  // send fin to extend server
+  proto::ExtendMsg extend_msg;
+  extend_msg.set_type(proto::ExtendMsg::FIN);
+  send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg);
+  // stop acting as a tail server
+  LOG(INFO) << "Stop acting as the tail server" 
+            << endl << endl;
   cs->set_extending_chain(false);
   cs->set_finish_sending_hist(false);
   cs->set_istail(false);
+}
+
+// extend server receive request(account, processed_list, sent_list, fin) from current tail
+void ChainServer::receive_extend_msg(const proto::ExtendMsg& extend_msg) {
+  if (extend_msg.type() == proto::ExtendMsg::ACCOUNT) {
+    assert(extend_msg.has_account());
+    create_account(extend_msg.account());
+    return;
+  }
+  if (extend_msg.type() == proto::ExtendMsg::HISTORY) {
+    assert(extend_msg.has_request());
+    insert_processed_list(extend_msg.request());
+    return;
+  }
+  if (extend_msg.type() == proto::ExtendMsg::SENT) {
+    proto::Request req = extend_msg.request();
+    update_request_reply(&req);
+    write_log_reply(req.reply());
+
+    if (req.check_result() == proto::Request::NEWREQ)
+      insert_processed_list(req);   
+      return;
+  }
+  if (extend_msg.type() == proto::ExtendMsg::FIN) {
+    return;
+  }
 }
 
 // Server crash scenario
@@ -233,6 +274,8 @@ void ChainServer::if_server_crash() {
   }
 }
 
+
+// server forward request to its succ server
 void ChainServer::forward_request(const proto::Request& req) {
   if (send_msg_tcp(succ_server_addr_, proto::Message::REQUEST, req)) {  // send tcp message successfully
     send_msg_seq++;
@@ -243,6 +286,7 @@ void ChainServer::forward_request(const proto::Request& req) {
   }
 }
 
+// tail/single server reply to client
 void ChainServer::reply_to_client(const proto::Request& req) {
   proto::Reply reply = req.reply();
   proto::Address client;
@@ -256,6 +300,7 @@ void ChainServer::reply_to_client(const proto::Request& req) {
   if_server_crash();  // for FailAfterSend & FailAfterSendInExtend scenario
 }
 
+// server send ack to pre server
 void ChainServer::sendback_ack(const proto::Acknowledge& ack) {
   if (send_msg_tcp(pre_server_addr_, proto::Message::ACKNOWLEDGE, ack)) { // send tcp message successfully
     send_msg_seq++;
@@ -266,6 +311,7 @@ void ChainServer::sendback_ack(const proto::Acknowledge& ack) {
   }
 }
 
+// server receive ack
 void ChainServer::receive_ack(proto::Acknowledge* ack) {
   while (!sent_list_.empty() &&
          sent_list_.front().bank_update_seq() <= ack->bank_update_seq()) {
@@ -355,14 +401,6 @@ void ChainServer::single_handle_update(proto::Request* req) {
     insert_sent_list(*req);
     
   reply_to_client(*req);
-  /*
-  if (extending_chain_ && finish_sending_hist_) {
-    // forward request in the sent_list to succ server
-    istail_ = false;
-    extending_chain_ = false;
-    finish_sending_hist_ = false;
-  }
-  */
 }
 
 // tail server handle update request
@@ -381,15 +419,6 @@ void ChainServer::tail_handle_update(proto::Request* req) {
   proto::Acknowledge ack;
   ack.set_bank_update_seq(req->bank_update_seq());
   sendback_ack(ack);
-  /*
-  if (extending_chain_ && finish_sending_hist_) {
-    // forward request in the sent_list to succ server
-    
-    istail_ = false;
-    extending_chain_ = false;
-    finish_sending_hist_ = false;
-  } 
-  */
 }
 
 // interval server handle update request
@@ -487,6 +516,15 @@ Account& ChainServer::get_or_create_account(const proto::Request& req,
   }
 }
 
+// create account object
+bool ChainServer::create_account(const proto::Account& account) {
+  Account accountObject(account.account_id(), account.balance());
+  auto it_insert =
+        bank_.account_map().insert(std::make_pair(accountObject.accountid(), accountObject));
+  assert(it_insert.second);
+  return true;
+}
+
 // check if the contents of 2 requests with same req_id are consistent
 bool ChainServer::req_consistent(const proto::Request& req1,
                                  const proto::Request& req2) {
@@ -542,7 +580,7 @@ ChainServer::UpdateBalanceOutcome ChainServer::update_balance(
   }
 }
 
-// used in tail_handle_update(req) and single_handle_update(req)
+// used in tail_handle_update(req), single_handle_update(req) and receive_extend_msg(extend_msg)
 void ChainServer::insert_processed_list(const proto::Request& req) {
   auto it = processed_map_.find(req.req_id() + "_" + req.account_id());
   if (it == processed_map_.end()) {  // doesn't exist in processed list
