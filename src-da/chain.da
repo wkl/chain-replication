@@ -41,6 +41,7 @@ JSON_FAIL_AFTER_INTERVAL_FAIL = 'fail_after_interval_fail'
 JSON_START_DEALY = 'startdelay'
 JSON_EXTEND_SEND_DELAY = 'extend_send_delay'
 JSON_CHAINNO = 'chainno'
+JSON_UDP_DROP_INTERVAL = 'udp_drop_interval'
 
 class RequestType(Enum):
     QUERY = 0
@@ -628,6 +629,7 @@ class Client(process):
         self.recv = {}
         self.send_msg_seq = 0
         self.recv_msg_seq = 0
+        self.reply_count = 0
 
     # output log with client id
     def client_output(log):
@@ -647,7 +649,8 @@ class Client(process):
             send(('REQUEST', req), to=target.process)
             resend_count = 0
             while True:
-                time.sleep(1)
+                if resend_count == 0:
+                    time.sleep(1)
                 if await(self.recv[req.req_id]):
                     break
                 elif timeout(config.wait_timeout):
@@ -670,7 +673,10 @@ class Client(process):
         await(0) # all requets complete, waiting for notification
 
     def receive(msg=('REPLY', reply), from_=s):
-        # TODO drop some reply
+        self.reply_count += 1
+        if config.drop_interval and self.reply_count % config.drop_interval == 0:
+            self.client_output("Reply dropped to simulate message loss")
+            return
         self.recv_msg_seq += 1
         self.client_output("(%d) Received REPLY %s" % (self.recv_msg_seq, reply))
         self.recv[reply.req_id] = 1
@@ -768,7 +774,7 @@ class Acknowledge:
         return "ReqID: %s, BankUpdateSeq: %d" % (self.req_id, self.bank_update_seq)
 
 class ClientConfig:
-    def __init__(self, json_client, json_banks):
+    def __init__(self, json_client, json_banks, common_config_json):
         type_dict = {
             'QUERY' : RequestType.QUERY,
             'DEPOSIT' : RequestType.DEPOSIT,
@@ -798,27 +804,38 @@ class ClientConfig:
             json_reqseed = json_client[JSON_REQSEED]
             req_num = json_reqseed[JSON_REQNUM]
             for i in range(0, req_num):
-              account_num = json_reqseed[JSON_ACCOUNTNUM]
-              max_amount = json_reqseed[JSON_MAXAMOUNT]
-              prob_query = json_reqseed[JSON_PROBQUERY]
-              prob_withdraw = json_reqseed[JSON_PROBWITHDRAW]
-              prob_deposit = json_reqseed[JSON_PROBDEPOSIT]
-              weight = {RequestType.QUERY:prob_query, RequestType.DEPOSIT:prob_deposit, RequestType.WITHDRAW:prob_withdraw}
-              items = list(weight.keys())
-              req_type = random_req_type(weight, items)
-              bank_seq = random.randint(0, len(json_banks)-1)
-              bank_id = json_banks[bank_seq][JSON_BANKID]
-              account_seq = random.randint(1, account_num)
-              account_id = "account%d" % (account_seq)
-              if (req_type == RequestType.QUERY):
-                  amount = 0
-              else:
-                  amount = random.randint(1, int(max_amount))
-              req_id = "%s.%s.%d" % (bank_id, self.client_id, i+1)
-              request = Request(req_id, req_type, bank_id, account_id, amount)
-              self.request_list.append(request)
-              print('req_id=%s, bank_id=%s, account_id=%s, amount=%d, req_type=%s' % (
+                account_num = json_reqseed[JSON_ACCOUNTNUM]
+                max_amount = json_reqseed[JSON_MAXAMOUNT]
+                prob_query = json_reqseed[JSON_PROBQUERY]
+                prob_withdraw = json_reqseed[JSON_PROBWITHDRAW]
+                prob_deposit = json_reqseed[JSON_PROBDEPOSIT]
+                weight = {RequestType.QUERY:prob_query, RequestType.DEPOSIT:prob_deposit, RequestType.WITHDRAW:prob_withdraw}
+                items = list(weight.keys())
+                req_type = random_req_type(weight, items)
+                bank_seq = random.randint(0, len(json_banks)-1)
+                bank_id = json_banks[bank_seq][JSON_BANKID]
+                account_seq = random.randint(1, account_num)
+                account_id = "account%d" % (account_seq)
+                if (req_type == RequestType.QUERY):
+                    amount = 0
+                else:
+                    amount = random.randint(1, int(max_amount))
+                req_id = "%s.%s.%d" % (bank_id, self.client_id, i+1)
+                request = Request(req_id, req_type, bank_id, account_id, amount)
+                self.request_list.append(request)
+                print('req_id=%s, bank_id=%s, account_id=%s, amount=%d, req_type=%s' % (
                   req_id, bank_id, account_id, amount, req_type))
+
+        drop_interval = json_client.get(JSON_UDP_DROP_INTERVAL)
+        if drop_interval:
+            if drop_interval == JSON_RANDOM:
+                self.drop_interval = random.randint(2, len(self.request_list) - 1)
+                print("%s drop reply interval is %d" %
+                       (self.client_id, self.drop_interval))
+            else:
+                self.drop_interval = int(seq)
+        else:
+            self.drop_interval = 0
 
 def random_req_type(weight, items):
     mysum = 0
@@ -859,12 +876,12 @@ class ServerConfig:
         seq = server_json.get(JSON_FAIL_SEQ)
         if seq:
             if seq == JSON_RANDOM:
-                self.fail_seq = 0 # TODO random seq
+                self.fail_seq = random.randint(2,8)
+                print("Randomly generate server fail_seq=%d" % self.fail_seq)
             else:
                 self.fail_seq = int(seq)
         else:
             self.fail_seq = 0
-
 
         start_delay = server_json.get(JSON_START_DEALY)
         self.start_delay = start_delay if start_delay else 0
@@ -885,7 +902,8 @@ def main():
     # read client configs
     client_configs = []
     for config in json_doc[JSON_CLIENTS]:
-        client_configs.append(ClientConfig(config, json_doc[JSON_BANKS]))
+        client_configs.append(ClientConfig(config, json_doc[JSON_BANKS],
+                                           common_config_json))
 
     bank_jsons = {}
     bank_heads = {}
