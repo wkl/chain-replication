@@ -3,7 +3,7 @@ master/master -c ../config/test1.json
 server/server -c ../config/test1.json -b bank1 -n 1
 server/server -c ../config/test1.json -b bank1 -n 2
 
-original chain length is 2, header fails after sending 2 msgs (req, req, fail)
+original chain length is 2, header fails after sending 2 msgs
 
 
 
@@ -13,7 +13,7 @@ server/server -c ../config/test2.json -b bank1 -n 1
 server/server -c ../config/test2.json -b bank1 -n 2
 server/server -c ../config/test2.json -b bank1 -n 3
 
-original chain length is 3, header fails after receiving 2 msgs (req, req, fail)
+original chain length is 3, header fails after receiving 2 msgs
 
 
 
@@ -22,7 +22,7 @@ master/master -c ../config/test3.json
 server/server -c ../config/test3.json -b bank1 -n 1
 server/server -c ../config/test3.json -b bank1 -n 2
 
-original chain length is 2, tail fails after sending 3 msgs (reply, ack, reply, fail)
+original chain length is 2, tail fails after sending 3 msgs
 
 
 
@@ -32,15 +32,116 @@ server/server -c ../config/test4.json -b bank1 -n 1
 server/server -c ../config/test4.json -b bank1 -n 2
 server/server -c ../config/test4.json -b bank1 -n 3
 
-original chain length is 3, tail fails after receiving 3 msgs (req, req, req, fail)
+original chain length is 3, tail fails after receiving 3 msgs
 
 
 test5:
+master/master -c ../config/test5.json
+server/server -c ../config/test5.json -b bank1 -n 1
+server/server -c ../config/test5.json -b bank1 -n 2
+server/server -c ../config/test5.json -b bank1 -n 3
 
-origianl chain length is 1, extending chain
+origianl chain length is 3, internal 2nd server fails after receiving 2 msgs
 
 
 
 test6:
+master/master -c ../config/test6.json
+server/server -c ../config/test6.json -b bank1 -n 1
+server/server -c ../config/test6.json -b bank1 -n 2
+server/server -c ../config/test6.json -b bank1 -n 3
+server/server -c ../config/test6.json -b bank1 -n 4
 
-origianl chain length is 2, extending chain
+origianl chain length is 4, internal 3rd server fails after receiving 2 msgs, 
+2nd server fails during removal of 3rd server, immediately after learning which 
+updates in sent_list should be forwarded to 4th server
+
+
+
+test7:
+master/master -c ../config/test7.json
+server/server -c ../config/test7.json -b bank1 -n 1
+server/server -c ../config/test7.json -b bank1 -n 2
+server/server -c ../config/test7.json -b bank1 -n 3
+
+origianl chain length is 3, internal 2nd server fails after receiving 2 msgs, 
+1st server fails during removal of 2nd server, immediately after learning which 
+updates in sent_list should be forwarded to 3rd server
+
+
+
+test8:
+master/master -c ../config/test8.json
+server/server -c ../config/test8.json -b bank1 -n 1
+server/server -c ../config/test8.json -b bank1 -n 2
+server/server -c ../config/test8.json -b bank1 -n 3
+server/server -c ../config/test8.json -b bank1 -n 4
+
+origianl chain length is 4, internal 2nd server fails after receiving 2 msgs, 
+3rd server fails during removal of 2nd server, immediately after receiving 
+the updates in sent_list of 1st server
+
+
+
+test9:
+master/master -c ../config/test9.json
+server/server -c ../config/test9.json -b bank1 -n 1
+server/server -c ../config/test9.json -b bank1 -n 2
+server/server -c ../config/test9.json -b bank1 -n 3
+
+origianl chain length is 3, internal 2nd server fails after receiving 2 msgs, 
+3rd server fails during removal of 2nd server, immediately after receiving 
+the updates in sent_list of 1st server
+
+
+
+test10:
+master/master -c ../config/test10.json
+server/server -c ../config/test10.json -b bank1 -n 1
+server/server -c ../config/test10.json -b bank1 -n 2
+
+original chain length is 1, 2nd server is extending server
+
+
+
+test11:
+master/master -c ../config/test11.json
+server/server -c ../config/test11.json -b bank1 -n 1
+server/server -c ../config/test11.json -b bank1 -n 2
+server/server -c ../config/test11.json -b bank1 -n 3
+
+original chain length is 2, 3rd server is extending server
+
+
+
+
+test12:
+master/master -c ../config/test12.json
+server/server -c ../config/test12.json -b bank1 -n 1
+server/server -c ../config/test12.json -b bank1 -n 2
+
+original chain length is 1, 2nd server is extending server,
+but fails during chain extension 
+
+
+
+test13:
+master/master -c ../config/test13.json
+server/server -c ../config/test13.json -b bank1 -n 1
+server/server -c ../config/test13.json -b bank1 -n 2
+server/server -c ../config/test13.json -b bank1 -n 3
+
+original chain length is 2, 3rd server is extending server, 
+but current tail 2nd server fails during chain extension 
+
+
+
+test14:
+master/master -c ../config/test14.json
+server/server -c ../config/test14.json -b bank1 -n 1
+server/server -c ../config/test14.json -b bank1 -n 2
+server/server -c ../config/test14.json -b bank1 -n 3
+server/server -c ../config/test14.json -b bank1 -n 4
+
+original chain length is 3, 4th server is extending server, 
+but current tail 3rd server fails during chain extension 
