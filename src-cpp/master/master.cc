@@ -136,6 +136,7 @@ void notify_crash(BankServerChain& bsc, Node& node) {
     new_head_addr->CopyFrom(bsc.succ_server_addr(node));
     send_msg_tcp(*new_head_addr, proto::Message::TO_BE_HEAD,
                  empty_msg);
+    bsc.set_head(bsc.succ_server_addr(node).ip(), bsc.succ_server_addr(node).port());             
     bsc.remove_node(node);
     LOG(INFO) << "Notify server " 
               << new_head_addr->ip() << ":" << new_head_addr->port() 
@@ -161,6 +162,7 @@ void notify_crash(BankServerChain& bsc, Node& node) {
     new_tail_addr->CopyFrom(bsc.pre_server_addr(node));
     send_msg_tcp(*new_tail_addr, proto::Message::TO_BE_TAIL,
                  empty_msg);
+    bsc.set_tail(bsc.pre_server_addr(node).ip(), bsc.pre_server_addr(node).port());             
     bsc.remove_node(node);
     LOG(INFO) << "Notify server " 
               << new_tail_addr->ip() << ":" << new_tail_addr->port() 
@@ -175,7 +177,15 @@ void notify_crash(BankServerChain& bsc, Node& node) {
     }   
     LOG(INFO) << "Notify all the clients of the new tail server" 
               << " of bank " << bsc.bank_id()
-              << endl << endl;                
+              << endl << endl;  
+    // if there's a extending server
+    Node empty_node("", 0);
+    if (!(empty_node == bsc.extending())) {
+      LOG(INFO) << "Notify new tail server that there is a server which wants to join"
+                << endl << endl;
+      send_msg_tcp(bsc.tail(), proto::Message::EXTEND_SERVER,
+                   bsc.extending()); 
+    }                          
   } else if (node != bsc.head() && node != bsc.tail() && node!=bsc.extending()) {  // internal crashed
     send_msg_tcp(bsc.succ_server_addr(node), proto::Message::NEW_PRE_SERVER,
                  bsc.pre_server_addr(node));
@@ -262,6 +272,8 @@ int read_config_master(string dir) {
       if (server_json[JSON_CHAINNO].asInt() == server_list_json.size())  // it is a tail server
         bsc.set_tail(node);
     }
+    Node empty_node("", 0);
+    bsc.set_extending(empty_node);
     master->add_bank(bsc.bank_id(), bsc);
   }
   // client list

@@ -100,8 +100,8 @@ class ChainServer {
   void set_extending_chain(bool extending_chain) { extending_chain_ = extending_chain; };
   bool finish_sending_hist() { return finish_sending_hist_; };
   void set_finish_sending_hist(bool finish_sending_hist) { finish_sending_hist_ = finish_sending_hist; };
-  unordered_map<string, proto::Request> processed_map() { return processed_map_;}
-  deque<proto::Request> sent_list() { return sent_list_; }
+  unordered_map<string, proto::Request>& processed_map() { return processed_map_;}
+  deque<proto::Request>& sent_list() { return sent_list_; }
   void set_extend_send_delay(int extend_send_delay) { extend_send_delay_ = extend_send_delay; };
   int extend_send_delay() { return extend_send_delay_; };
 

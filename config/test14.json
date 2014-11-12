@@ -1,0 +1,133 @@
+{
+    "config": {
+        "server_report_interval": 1,
+        "server_fail_timeout": 3,
+        "tcp_timeout": 1,
+        "udp_drop_interval": "0",
+        "extend_send_delay": 1
+    },
+    "master": {
+        "ip": "127.0.0.1",
+        "port": 50000
+    },
+    "banks": [
+        {
+            "bankid": "bank1",
+            "servers": [
+                {
+                    "ip": "127.0.0.1",
+                    "port": 50001,
+                    "chainno": 1,
+                    "startdelay": 0,
+                    "failscenario": "none"
+                },
+                {
+                    "ip": "127.0.0.1",
+                    "port": 50002,
+                    "chainno": 2,
+                    "startdelay": 0,
+                    "failscenario": "none"
+                },                
+                {
+                    "ip": "127.0.0.1",
+                    "port": 50003,
+                    "chainno": 3,
+                    "startdelay": 0,
+                    "failscenario": "fail_after_send_in_extend",
+                    "failseq": "3"
+                }
+            ],
+            "extend_servers": [
+                {
+                    "ip": "127.0.0.1",
+                    "port": 50004,
+                    "chainno": 4,
+                    "startdelay": 3,
+                    "failscenario": "none"
+                }
+            ]
+        }
+    ],
+    "clients": [
+        {
+            "clientid": "client1",
+            "ip": "127.0.0.1",
+            "port": 60001,
+            "waittimeout": 5,
+            "resendnum": 3,
+            "resend_newhead": true,
+            "requests": [
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "seq": 1,
+                    "type": "DEPOSIT",
+                    "amount": 1000
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "seq": 2,
+                    "type": "WITHDRAW",
+                    "amount": 100
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "seq": 3,
+                    "type": "WITHDRAW",
+                    "amount": 200
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "seq": 4,
+                    "type": "WITHDRAW",
+                    "amount": 300
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "seq": 5,
+                    "type": "WITHDRAW",
+                    "amount": 400
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "seq": 6,
+                    "type": "DEPOSIT",
+                    "amount": 10000
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "seq": 7,
+                    "type": "WITHDRAW",
+                    "amount": 1000
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "seq": 8,
+                    "type": "WITHDRAW",
+                    "amount": 2000
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "seq": 9,
+                    "type": "WITHDRAW",
+                    "amount": 3000
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "seq": 10,
+                    "type": "WITHDRAW",
+                    "amount": 4000
+                }                
+            ]
+        }
+    ]
+}

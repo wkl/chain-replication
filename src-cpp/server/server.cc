@@ -8,6 +8,7 @@ std::unique_ptr<ChainServer> cs;
 proto::Address master_addr;
 int heartbeat_interval;	// in sec
 int tcp_timeout;  // in sec
+int send_req_seq_extend = 0;
 
 void ChainServerUDPLoop::handle_msg(proto::Message& msg,
                                     proto::Address& from_addr) {
@@ -153,6 +154,7 @@ void ChainServer::receive_new_succserver(const proto::Reqseq& req_seq) {
 void ChainServer::receive_extend_server(const proto::Address& extend_addr) {
   extending_chain_ = true;
   finish_sending_hist_ = false;
+  send_req_seq_extend = 0;
   succ_server_addr_ = extend_addr;
   LOG(INFO) << "Notified a new server " 
             << extend_addr.ip() << ":" << extend_addr.port() 
@@ -195,6 +197,8 @@ void send_req_to_extend_server() {
               << cs->succ_server_addr().port()
               << endl << extend_msg_start.ShortDebugString() << endl << endl;  
   }
+  send_req_seq_extend++;
+  cs->if_server_crash();
   std::this_thread::sleep_for(std::chrono::seconds(cs->extend_send_delay()));
   // send account info
   for (auto& it : account_map_copy) {
@@ -211,7 +215,9 @@ void send_req_to_extend_server() {
       LOG(INFO) << "Server sent tcp message to " << cs->succ_server_addr().ip() << ":"
                 << cs->succ_server_addr().port()
                 << endl << extend_msg.ShortDebugString() << endl << endl;  
-    }    
+    } 
+    send_req_seq_extend++;
+    cs->if_server_crash();   
     std::this_thread::sleep_for(std::chrono::seconds(cs->extend_send_delay()));
   }
   // send request in the processed_list
@@ -229,7 +235,9 @@ void send_req_to_extend_server() {
       LOG(INFO) << "Server sent tcp message to " << cs->succ_server_addr().ip() << ":"
                 << cs->succ_server_addr().port()
                 << endl << extend_msg.ShortDebugString() << endl << endl;  
-    }      
+    }   
+    send_req_seq_extend++;
+    cs->if_server_crash();   
     std::this_thread::sleep_for(std::chrono::seconds(cs->extend_send_delay()));
   }
   cs->set_finish_sending_hist(true);
@@ -250,7 +258,9 @@ void send_req_to_extend_server() {
       LOG(INFO) << "Server sent tcp message to " << cs->succ_server_addr().ip() << ":"
                 << cs->succ_server_addr().port()
                 << endl << extend_msg.ShortDebugString() << endl << endl;  
-    }          
+    }     
+    send_req_seq_extend++;
+    cs->if_server_crash();     
   }
   // send fin to extend server
   proto::ExtendMsg extend_msg_fin;
@@ -267,19 +277,21 @@ void send_req_to_extend_server() {
               << endl << extend_msg_fin.ShortDebugString() << endl << endl;  
   }  
   // stop acting as a tail server
-  LOG(INFO) << "Stop acting as the tail server, sent list is cleared" 
+  LOG(INFO) << "Stop acting as the tail server" 
             << endl << endl;
   cs->set_extending_chain(false);
   cs->set_finish_sending_hist(false);
   cs->set_istail(false);
-  cs->sent_list().clear();
 }
 
 // extend server receive request(account, processed_list, sent_list, fin) from current tail
 void ChainServer::receive_extend_msg(const proto::ExtendMsg& extend_msg) {
   if (extend_msg.type() == proto::ExtendMsg::START) {
     // TODO: clear processed_list, bank_update_seq, pre_server_addr, bank.account
-    cs->set_pre_server_addr(extend_msg.server_addr());
+    processed_map_.clear();
+    bank_.account_map().clear();
+    bank_update_seq_ = 0;
+    pre_server_addr_ = extend_msg.server_addr();
     LOG(INFO) << "Server begins to receive history records from current tail server " 
               << cs->pre_server_addr().ip() << ":" << cs->pre_server_addr().port()
               << endl << endl;
@@ -362,6 +374,12 @@ void ChainServer::if_server_crash() {
         exit(0);
       }
       break;
+    case ChainServer::FailScenario::FailAfterSendInExtend:
+      if (send_req_seq_extend == fail_seq_) {
+        LOG(INFO) << "Server (current tail) crashed during chain extension"
+                  << endl << endl;
+        exit(0);
+      }
     default:
       break;
   }
@@ -813,12 +831,14 @@ int read_config_server(string dir, string bankid, int chainno) {
         cs->set_fail_scenario(ChainServer::FailScenario::FailAfterRecvInExtend); 
       else if (fail_scenario == JSON_FAIL_AFTER_INTERVAL_FAIL)
         cs->set_fail_scenario(ChainServer::FailScenario::FailAfterIntervalFail);
+      else if (fail_scenario == JSON_FAIL_AFTER_SEND_IN_EXTEND)
+        cs->set_fail_scenario(ChainServer::FailScenario::FailAfterSendInExtend);
       if (!server_json.isMember(JSON_FAIL_SEQ))
-        cs->set_fail_seq(0);
+        cs->set_fail_seq(-1);
       else {
         string fail_seq = server_json[JSON_FAIL_SEQ].asString();
         if (fail_seq == JSON_RANDOM)
-          cs->set_fail_seq(0);  // TODO: use some reasonable random data
+          cs->set_fail_seq(-1);  // TODO: use some reasonable random data
         else
           cs->set_fail_seq(std::atoi(fail_seq.c_str()));
       }
