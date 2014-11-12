@@ -1,4 +1,5 @@
 #include <list>
+#include <mutex>
 #include "server.h"
 
 #include <boost/program_options.hpp>
@@ -9,6 +10,7 @@ proto::Address master_addr;
 int heartbeat_interval;	// in sec
 int tcp_timeout;  // in sec
 int send_req_seq_extend = 0;
+std::mutex mutex_lock;
 
 void ChainServerUDPLoop::handle_msg(proto::Message& msg,
                                     proto::Address& from_addr) {
@@ -166,19 +168,22 @@ void ChainServer::receive_extend_server(const proto::Address& extend_addr) {
 
 // Current Tail send request(account, processed_list, sent_list, fin) to extended server
 void send_req_to_extend_server() {
-  // deep copy cs->bank().account_map(), cs->processed_list(), lock?
+  // deep copy cs->bank().account_map(), cs->processed_list(), mutex lock
   std::list<proto::Account*> account_map_copy;
-  for (auto& it : cs->bank().account_map()) {
-    auto *account = new proto::Account;
-    account->set_account_id(it.second.accountid());
-    account->set_balance(it.second.balance());
-    account_map_copy.push_back(account);
-  }
   std::list<proto::Request*> processed_map_copy;
-  for (auto& it : cs->processed_map()) {
-    auto *req = new proto::Request;
-    req->CopyFrom(it.second);  
-    processed_map_copy.push_back(req);
+  {
+    std::lock_guard<std::mutex> lock(mutex_lock);
+    for (auto& it : cs->bank().account_map()) {
+      auto *account = new proto::Account;
+      account->set_account_id(it.second.accountid());
+      account->set_balance(it.second.balance());
+      account_map_copy.push_back(account);
+    }
+    for (auto& it : cs->processed_map()) {
+      auto *req = new proto::Request;
+      req->CopyFrom(it.second);  
+      processed_map_copy.push_back(req);
+    }
   }
   // send start msg
   proto::ExtendMsg extend_msg_start;
@@ -242,25 +247,28 @@ void send_req_to_extend_server() {
   }
   cs->set_finish_sending_hist(true);
   // send request in the sent_list, lock main thread of tail dealing new request
-  for (auto& it : cs->sent_list()) {
-    auto *req = new proto::Request;
-    req->CopyFrom(it); 
-    proto::ExtendMsg extend_msg;
-    extend_msg.set_type(proto::ExtendMsg::SENT);
-    extend_msg.set_allocated_request(req);
-    send_res = send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg);
-    if (!send_res) {
-      LOG(INFO) << "Server can't get connect to new extended server, give up"
-                << endl << endl;
-      return;
-    } 
-    else {
-      LOG(INFO) << "Server sent tcp message to " << cs->succ_server_addr().ip() << ":"
-                << cs->succ_server_addr().port()
-                << endl << extend_msg.ShortDebugString() << endl << endl;  
-    }     
-    send_req_seq_extend++;
-    cs->if_server_crash();     
+  {
+    std::lock_guard<std::mutex> lock(mutex_lock);
+    for (auto& it : cs->sent_list()) {
+      auto *req = new proto::Request;
+      req->CopyFrom(it); 
+      proto::ExtendMsg extend_msg;
+      extend_msg.set_type(proto::ExtendMsg::SENT);
+      extend_msg.set_allocated_request(req);
+      send_res = send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg);
+      if (!send_res) {
+        LOG(INFO) << "Server can't get connect to new extended server, give up"
+                  << endl << endl;
+        return;
+      } 
+      else {
+        LOG(INFO) << "Server sent tcp message to " << cs->succ_server_addr().ip() << ":"
+                  << cs->succ_server_addr().port()
+                  << endl << extend_msg.ShortDebugString() << endl << endl;  
+      }     
+      send_req_seq_extend++;
+      cs->if_server_crash();     
+    }
   }
   // send fin to extend server
   proto::ExtendMsg extend_msg_fin;
@@ -445,6 +453,7 @@ void ChainServer::receive_request(proto::Request* req) {
   // processing update request
   assert(req->type() != proto::Request::QUERY);
   // head server
+  std::lock_guard<std::mutex> lock(mutex_lock);
   if (ishead_ && !istail_) {
     bank_update_seq_++;  // sequence of update request
     req->set_bank_update_seq(bank_update_seq_);
