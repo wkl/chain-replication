@@ -2,11 +2,18 @@ import sys
 from enum import Enum
 from collections import deque
 import json
-import random 
+import random
 import bisect
+import datetime
+import time
+import threading
+import copy
 
 JSON_CLIENTS = 'clients'
 JSON_CLIENTID = 'clientid'
+JSON_WAIT_TIMEOUT = 'waittimeout'
+JSON_RESEND_NUM = 'resendnum'
+JSON_RESEND_NEWHEAD = 'resend_newhead'
 JSON_REQSEED = 'reqseed'
 JSON_REQUESTS = 'requests'
 JSON_TYPE = 'type'
@@ -21,6 +28,20 @@ JSON_MAXAMOUNT = 'maxamount'
 JSON_PROBQUERY = 'probquery'
 JSON_PROBWITHDRAW = 'probwithdraw'
 JSON_PROBDEPOSIT = 'probdeposit'
+JSON_SERVER_REPORT_INTERVAL = 'server_report_interval'
+JSON_SERVER_FAIL_TIMEOUT = 'server_fail_timeout'
+JSON_FAIL_SCENARIO = 'failscenario'
+JSON_FAIL_SEQ = 'failseq'
+JSON_RANDOM = 'random'
+JSON_UNBOUNDED = "none"
+JSON_FAIL_AFTER_SEND = 'fail_after_send'
+JSON_FAIL_AFTER_RECV = 'fail_after_recv'
+JSON_FAIL_AFTER_SEND_IN_EXTEND = 'fail_after_send_in_extend'
+JSON_FAIL_AFTER_INTERVAL_FAIL = 'fail_after_interval_fail'
+JSON_START_DEALY = 'startdelay'
+JSON_EXTEND_SEND_DELAY = 'extend_send_delay'
+JSON_CHAINNO = 'chainno'
+JSON_UDP_DROP_INTERVAL = 'udp_drop_interval'
 
 class RequestType(Enum):
     QUERY = 0
@@ -35,8 +56,171 @@ class Outcome(Enum):
     INCONSISTENT_WITH_HISTORY = 2
     INSUFFICIENT_FUNDS = 3
 
+class FailScenario(Enum):
+    Unbounded = 0
+    FailAfterSend = 1
+    FailAfterRecv = 2
+    FailAfterSendInExtend = 3
+    FailAfterIntervalFail = 4
+
+class Node:
+    def __init__(self, bank_id, server_id, process):
+        self.bank_id = bank_id
+        self.server_id = server_id
+        self.process = process # essentially TCPEndPoint in Distalgo
+        self.crashed = False
+        self.last_report_time = None
+
+    def set_report_time(self):
+        self.last_report_time = datetime.datetime.now()
+
+    def become_crashed(self, fail_timeout):
+        if self.crashed or not self.last_report_time:
+            return False
+
+        time_span = datetime.datetime.now() - self.last_report_time
+        if time_span.total_seconds() > fail_timeout:
+            self.crashed = True
+
+        return self.crashed
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.process == other.process
+        else:
+            return False
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __str__(self):
+        return "[%s-%d]" % (self.bank_id, self.server_id)
+
+class BankServerChain:
+    def __init__(self, bank_id, servers):
+        self.bank_id = bank_id
+        self.servers = [Node(bank_id, i + 1, server) for (i, server) in enumerate(servers)]
+        self.head = self.servers[0]
+        self.tail = self.servers[-1]
+        self.extending_node = None
+
+    def get_node(self, process):
+        for server in self.servers:
+            if server.process == process:
+                return server
+        return None
+
+    def remove_node(self, node):
+        self.servers.remove(node) # works because we defined __eq__
+
+    # return node (which contains bank_id, server_id), not process
+    def succ_server(self, node):
+        assert(node != self.tail)
+        for i, server in enumerate(self.servers):
+            if server.process == node.process:
+                return self.servers[i+1]
+        assert(0)   # assert node is in chain
+
+    # return node, not process
+    def prev_server(self, node):
+        assert(node != self.head)
+        for i, server in enumerate(self.servers):
+            if server.process == node.process:
+                return self.servers[i-1]
+        assert(0)   # assert node is in chain
+
+class Master(process):
+    def setup(config, bank_chains, clients):
+        pass
+
+    def main():
+        # wakeup to check servers' liveness
+        while True:
+            if await(False):
+                pass
+            elif timeout(config.check_alive_interval):
+                self.check_alive()
+
+    def master_output(log):
+        output("[master] %s\n\n" % log)
+
+    def check_alive():
+        for bank_id, chain in bank_chains.items():
+            for node in chain.servers:
+                if node.become_crashed(config.fail_timeout):
+                    self.master_output("*** %s crashed! ***" % (node))
+                    self.notify_crash(chain, node)
+                    return
+
+    def notify_crash(chain, node):
+        if node == chain.head and node != chain.tail:   # head crashed
+            new_head = chain.succ_server(node)
+            send(('TO_BE_HEAD', ), to=new_head.process)
+            chain.remove_node(node)
+            chain.head = new_head
+
+            # notify new head to all clients / tail servers
+            for client in clients:
+                send(('NEW_HEAD', new_head), to=client)
+
+            for chain in bank_chains.values():
+                send(('NEW_HEAD', new_head), to=chain.tail.process)
+
+        elif node != chain.head and node == chain.tail:   # tail crashed
+            new_tail = chain.prev_server(node)
+            send(('TO_BE_TAIL', ), to=new_tail.process)
+            chain.remove_node(node)
+            chain.tail = new_tail
+
+            # notify new tail to all clients
+            for client in clients:
+                send(('NEW_TAIL', new_tail), to=client)
+
+            # extending node request to join at the same time
+            extending_node = chain.extending_node
+            if extending_node:
+                send(('NEW_TAIL_COME', extending_node), to=new_tail.process)
+
+        elif node == chain.extending_node:  # extending node failed
+            chain.extending_node = None
+            chain.remove_node(node)
+            send(('ABORT_EXTENDING',), to=chain.tail.process)
+        elif node != chain.head and node != chain.tail: # internal crash
+            send(('NEW_PREV_SERVER', chain.prev_server(node)), to=chain.succ_server(node).process)
+            chain.remove_node(node)
+
+        else:
+            self.master_output("the only server crashed?")
+            assert(0)
+
+    def receive(msg=('HEARTBEAT', bank_id), from_=server):
+        node = bank_chains[bank_id].get_node(server)
+        if node:
+            node.set_report_time()
+            # self.master_output("Heartbeat from %s" % node)
+
+    def receive(msg=('ACK_NEW_PREV_SERVER', bank_id, succ_sn), from_=succ):
+        succ_server = bank_chains[bank_id].get_node(succ)
+        prev_server = bank_chains[bank_id].prev_server(succ_server)
+        send(('NEW_SUCC_SERVER', succ_server, succ_sn), to=prev_server.process)
+
+    def receive(msg=('JOIN_CHAIN_REQUEST', server_id, bank_id), from_=s):
+        new_tail = Node(bank_id, server_id, s)
+        send(('NEW_TAIL_COME', new_tail), to=bank_chains[bank_id].tail.process)
+        bank_chains[bank_id].servers.append(new_tail)
+        bank_chains[bank_id].extending_node = new_tail
+
+    def receive(msg=('NEW_TAIL_READY', server_id, bank_id), from_=s):
+        new_tail = bank_chains[bank_id].extending_node
+        assert(new_tail.server_id == server_id)
+        bank_chains[bank_id].extending_node = None
+        bank_chains[bank_id].tail = new_tail
+        # notify new tail to all clients
+        for client in clients:
+            send(('NEW_TAIL', new_tail), to=client)
+
 class Server(process):
-    def setup(server_id, bank_id, prev, succ):
+    def setup(server_id, bank_id, prev, succ, master, bank_heads, config):
         self.is_head = True if not prev else False
         self.is_tail = True if not succ else False
 
@@ -46,10 +230,28 @@ class Server(process):
         self.sent = deque()
         self.send_msg_seq = 0
         self.recv_msg_seq = 0
+        self.send_msg_seq_extend = 0
+        self.internal_crashing = False
+        self.extending_chain = False
+        self.snapshot_lock = threading.Lock()
+        self.abort_extending = False
+
+        if config.start_delay > 0:
+            self.is_head = False
+            self.is_tail = False
 
     def main():
-        # do nothing in main loop
-        await(0)
+        if config.start_delay > 0:
+            time.sleep(config.start_delay)
+            self.server_output("====== sending join request ======")
+            send(('JOIN_CHAIN_REQUEST', server_id, bank_id), to=master)
+
+        # wakeup to send heartbeat
+        while True:
+            if await(False):
+                pass
+            elif timeout(config.heartbeat_interval):
+                ret = send(("HEARTBEAT", bank_id), to=master)
 
     # prefix output log with bank and server id
     def server_output(log):
@@ -58,20 +260,31 @@ class Server(process):
     def receive(msg=('ACK', ack), from_=s):
         self.recv_msg_seq += 1
         self.server_output("(%d) Received ACK %s" % (self.recv_msg_seq, ack))
+        self.if_server_crash()
+        req = None
 
-        # move request from sent list to processed list on ACK event
-        while len(self.sent) and self.sent[0].bank_update_seq <= ack.bank_update_seq:
-            req = self.sent.popleft()
-            self.server_output("remove request %s from sent list" % req.req_id)
-            self.insert_processed_list(req)
+        with self.snapshot_lock:
+            # move request from sent list to processed list on ACK event
+            while len(self.sent) and \
+                    self.sent[0].bank_update_seq <= ack.bank_update_seq:
+                req = self.sent.popleft()
+                self.server_output("remove request %s from sent list"
+                                   % req.req_id)
+                self.insert_processed_list(req)
 
         # output("sent list: %s" % self.sent)
-        if not self.is_head:
+        if not self.is_head and req:
             self.send_ack(req)
 
     def receive(msg=('REQUEST', req), from_=c):
         self.recv_msg_seq += 1
-        self.server_output("(%d) Received REQUEST %s" % (self.recv_msg_seq, req))
+        with self.snapshot_lock:
+            self.process_req(req, c)
+
+    def process_req(req, c):
+        self.server_output("(%d) Received REQUEST %s" %
+                            (self.recv_msg_seq, req))
+        self.if_server_crash()
 
         # tail handle query request
         if req.type == RequestType.QUERY:
@@ -95,11 +308,14 @@ class Server(process):
             req.client = c
             return self.single_handle_request(req)
 
-        # ignore duplicate update request which is possible when handling failure
+        # ignore duplicate update request which is possible
+        # when handling failure
         if self.bank_update_seq >= req.bank_update_seq:
             return
 
         # assertion based on our FIFO request forwarding assumption
+        if self.bank_update_seq != req.bank_update_seq - 1:
+            output("self: %d, req: %d" % (self.bank_update_seq, req.bank_update_seq))
         assert(self.bank_update_seq == req.bank_update_seq - 1)
         self.bank_update_seq = req.bank_update_seq
 
@@ -111,24 +327,188 @@ class Server(process):
         assert(not self.is_head and not self.is_tail)
         return self.internal_handle_request(req)
 
+    def receive(msg=('TO_BE_HEAD', ), from_=m):
+        self.recv_msg_seq += 1
+        self.server_output("Notified to be head server")
+        self.if_server_crash()
+        self.is_head = True
+        self.server_output("Ready to be head server")
+
+    def receive(msg=('TO_BE_TAIL', ), from_=m):
+        self.recv_msg_seq += 1
+        self.server_output("Notified to be tail server")
+        self.if_server_crash()
+        self.is_tail = True
+
+        ack_req = None # last req in sent list
+        if len(self.sent) > 0:
+            ack_req = self.sent[-1]
+
+        while len(self.sent) > 0:
+            req = self.sent.popleft()
+            self.insert_processed_list(req)
+
+        if not self.is_head and ack_req:
+            self.send_ack(ack_req)
+
+        self.server_output("Ready to be tail server")
+
+    def receive(msg=('NEW_SUCC_SERVER', server, succ_sn), from_=m):
+        self.recv_msg_seq += 1
+        succ = server
+        self.server_output("Notified new succ server: %s, sn: %d" %
+                           (server, succ_sn))
+        self.internal_crashing = True
+        self.if_server_crash()
+        with self.snapshot_lock:
+            for req in self.sent:
+                if req.bank_update_seq > succ_sn:
+                    self.forward_request(req) # will increase send_msg_seq
+
+    def receive(msg=('NEW_PREV_SERVER', server), from_=m):
+        self.recv_msg_seq += 1
+        prev = server
+        self.server_output("Notified new prev server: %s" % server)
+        self.if_server_crash()
+        self.internal_crashing = True
+        send(('ACK_NEW_PREV_SERVER', self.bank_id, self.bank_update_seq), to=master)
+
+    def receive(msg=('NEW_HEAD', new_head), from_=m):
+        self.recv_msg_seq += 1
+        bank_heads[new_head.bank_id] = new_head
+        self.server_output("%s head server is changed to %s" % (new_head.bank_id, new_head))
+        self.if_server_crash()
+
+    def receive(msg=('ABORT_EXTENDING',), from_=m):
+        self.abort_extending = True
+        self.server_output("Notified to abort extending")
+
+        # XXX Because send() in distalgo always successes no matter target is
+        # down or up, the extending thread may have already finished.
+        # In this case, now this node is serving as internal server and
+        # forwarding request to the crashed tailing server. We should check
+        # this (is_tail = False) and perform the same procedure as "TO_BE_TAIL"
+        # to ensure safety. The client is expected to retry the request.
+        if not self.is_tail:
+            ack_req = None # last req in sent list
+            if len(self.sent) > 0:
+                ack_req = self.sent[-1]
+
+            while len(self.sent) > 0:
+                req = self.sent.popleft()
+                self.insert_processed_list(req)
+
+            if not self.is_head and ack_req:
+                self.send_ack(ack_req)
+
+        self.sent.clear()
+        self.is_tail = True
+        self.extending_chain = False
+
+    def receive(msg=('NEW_TAIL_COME', new_tail), from_=m):
+        self.recv_msg_seq += 1
+        self.server_output("Notified new tail %s wants to join" % new_tail)
+        self.if_server_crash()
+        assert(len(self.sent) == 0)
+        self.extending_chain = True
+        self.abort_extending = False
+        succ = new_tail
+        t = threading.Thread(target=self.process_new_tail_come)
+        t.daemon = False
+        t.start()
+
+    # run in background thread
+    def process_new_tail_come():
+        self.server_output("Creating thread to send history to new tail")
+        with self.snapshot_lock:
+            processed_snapshot = copy.deepcopy(self.processed)
+            bank_snapshot = copy.deepcopy(self.bank)
+            sn_snapshot = self.bank_update_seq
+
+        self.send_msg_seq_extend += 1
+        time.sleep(config.extend_send_delay) # make send history longer
+        send(('BEGIN_OLD_TAIL_HISTORY', server_id, sn_snapshot),
+             to=succ.process)
+        self.if_server_crash()
+
+        for account_id, account_processed in processed_snapshot.items():
+            if self.abort_extending:
+                return
+            self.send_msg_seq_extend += 1
+            time.sleep(config.extend_send_delay) # make send history longer
+            account = bank_snapshot.accounts.get(account_id)
+            send(('OLD_TAIL_HISTORY', account, account_processed),
+                 to=succ.process)
+            self.if_server_crash()
+
+        with self.snapshot_lock:
+            send(('OLD_TAIL_SENT_LIST', self.sent), to=succ.process)
+
+            self.sent.clear()
+            self.is_tail = False
+            self.extending_chain = False
+
+            if self.abort_extending:
+                self.is_tail = True
+
+    def receive(msg=('BEGIN_OLD_TAIL_HISTORY', server_id, sn_snapshot), from_=s):
+        self.recv_msg_seq += 1
+        prev = Node(bank_id, server_id, s)
+        self.server_output("Ready to receive history from old tail: %s, sn: %s"
+                           % (prev, sn_snapshot))
+        self.if_server_crash()
+        self.bank.accounts = {}
+        self.processed = {}
+        self.sent = deque()
+        self.bank_update_seq = sn_snapshot
+
+    def receive(msg=('OLD_TAIL_HISTORY', account, account_processed), from_=s):
+        self.recv_msg_seq += 1
+        account_id = account.account_id
+        self.server_output("Receiving old tail history: %s" % account_id)
+        self.if_server_crash()
+        self.bank.accounts[account_id] = account # copy?
+        self.processed[account_id] = account_processed
+
+    def receive(msg=('OLD_TAIL_SENT_LIST', old_tail_sent), from_=s):
+        self.recv_msg_seq += 1
+        self.server_output("Receiving sent list (%d) from old tail: %s" %
+                            (len(old_tail_sent), prev))
+        self.if_server_crash()
+        print(self.bank_update_seq)
+        for req in old_tail_sent:
+            print(req, "sn", req.bank_update_seq)
+            if req.bank_update_seq > self.bank_update_seq:
+                self.bank_update_seq = req.bank_update_seq
+                self.update_request_reply(req)
+                self.insert_processed_list(req)
+
+        self.is_tail = True
+        send(('NEW_TAIL_READY', server_id, bank_id), to=master)
+        self.server_output("Ready to be new tail")
+
     # forward request to next server
     def forward_request(req):
         self.send_msg_seq += 1
         self.server_output("(%d) Forwarding req to %s: %s" % (self.send_msg_seq, succ, req))
         # output("sent list: %s" % self.sent)
-        send(("REQUEST", req), to=succ)
+        # self.server_output("%s" % self.bank.accounts['account1'])
+        send(("REQUEST", req), to=succ.process)
+        self.if_server_crash()
 
     def reply_to_client(req):
         self.send_msg_seq += 1
         self.server_output("(%d) Replying to %s: %s" % (self.send_msg_seq, req.client, req.reply))
         send(("REPLY", req.reply), to=req.client)
+        self.if_server_crash()
 
     # send ack back to previous server
     def send_ack(req):
         self.send_msg_seq += 1
         ack = Acknowledge(req)
-        self.server_output("(%d) Sending ACK to %s: %s" % (self.send_msg_seq, req.client, ack))
-        send(("ACK", ack), to=prev)
+        self.server_output("(%d) Sending ACK to %s: %s" % (self.send_msg_seq, prev, ack))
+        send(("ACK", ack), to=prev.process)
+        self.if_server_crash()
 
     def head_handle_request(req):
         self.update_request_reply(req)
@@ -139,12 +519,16 @@ class Server(process):
         self.update_request_reply(req)
         if req.is_new:
             self.insert_processed_list(req)
+        if self.extending_chain:
+            self.insert_sent_list(req)
         self.reply_to_client(req)
 
     def tail_handle_request(req):
         self.update_request_reply(req)
         if req.is_new:
             self.insert_processed_list(req)
+        if self.extending_chain:
+            self.insert_sent_list(req)
         if req.type != RequestType.TRANSFER_TO:
             self.reply_to_client(req)
         send_ack(req)
@@ -215,34 +599,97 @@ class Server(process):
         req.reply = reply
         self.reply_to_client(req)
 
+    def if_server_crash():
+        if config.fail_scenario == FailScenario.Unbounded:
+            return
+        elif config.fail_scenario == FailScenario.FailAfterSend:
+            if self.send_msg_seq == config.fail_seq:
+                self.server_output("Crashed after sending %d messages" %
+                                    self.send_msg_seq)
+                sys.exit(1)
+        elif config.fail_scenario == FailScenario.FailAfterRecv:
+            if self.recv_msg_seq == config.fail_seq:
+                self.server_output("Crashed after receiving %d messages" %
+                                    self.recv_msg_seq)
+                sys.exit(1)
+        elif config.fail_scenario == FailScenario.FailAfterSendInExtend:
+            # self.server_output("---------------- %d %s %d" % (self.send_msg_seq_extend, self.extending_chain, config.fail_seq))
+            if self.extending_chain and self.send_msg_seq_extend == config.fail_seq:
+                self.server_output("Crashed after sending %d messages during extending" % self.send_msg_seq_extend)
+                sys.exit(1)
+        elif config.fail_scenario == FailScenario.FailAfterIntervalFail:
+            if self.internal_crashing:
+                sys.exit(1)
+        else:
+            return
+
+
 class Client(process):
-    def setup(client_config, bank_heads, bank_tails):
+    def setup(bank_heads, bank_tails, config):
         self.recv = {}
         self.send_msg_seq = 0
         self.recv_msg_seq = 0
+        self.reply_count = 0
 
     # output log with client id
     def client_output(log):
-        output("[%s] %s\n\n" % (client_config.client_id, log))
+        output("[%s] %s\n\n" % (config.client_id, log))
 
     def main():
         count = 0
-        for req in client_config.request_list:
+        for req in config.request_list:
             if req.type == RequestType.QUERY:
                 target = bank_tails[req.bank_id]
             else:
                 target = bank_heads[req.bank_id]
             self.recv[req.req_id] = 0
             self.send_msg_seq += 1
-            self.client_output("(%d) Sending Request to %s: %s" % (self.send_msg_seq, target, req))
-            send(('REQUEST', req), to=target)
-            await(self.recv[req.req_id])
-            # await(some(received(('REPLY', reply), has=(reply.req_id == req_id))))
+            self.client_output("(%d) Sending Request to %s: %s" %
+                                (self.send_msg_seq, target, req))
+            send(('REQUEST', req), to=target.process)
+            resend_count = 0
+            while True:
+                if resend_count == 0:
+                    time.sleep(1)
+                if await(self.recv[req.req_id]):
+                    break
+                elif timeout(config.wait_timeout):
+                    self.client_output("Request (%s) timeout" % req.req_id)
+                    resend_count += 1
+                    if resend_count > config.resend_num:
+                        self.client_output("retried %d times, abort request"
+                                            % config.resend_num)
+                        break
+                    if config.resend_newhead:
+                        if req.type == RequestType.QUERY:
+                            target = bank_tails[req.bank_id]
+                        else:
+                            target = bank_heads[req.bank_id]
+
+                    self.client_output("retrying (%d of %d) Request (%s)" %
+                                (resend_count, config.resend_num, req.req_id))
+                    send(('REQUEST', req), to=target.process)
+
+        await(0) # all requets complete, waiting for notification
 
     def receive(msg=('REPLY', reply), from_=s):
+        self.reply_count += 1
+        if config.drop_interval and self.reply_count % config.drop_interval == 0:
+            self.client_output("Reply dropped to simulate message loss")
+            return
         self.recv_msg_seq += 1
         self.client_output("(%d) Received REPLY %s" % (self.recv_msg_seq, reply))
         self.recv[reply.req_id] = 1
+
+    def receive(msg=('NEW_HEAD', new_head), from_=m):
+        self.recv_msg_seq += 1
+        bank_heads[new_head.bank_id] = new_head
+        self.client_output("%s head server is changed to %s" % (new_head.bank_id, new_head))
+
+    def receive(msg=('NEW_TAIL', new_tail), from_=m):
+        self.recv_msg_seq += 1
+        bank_tails[new_tail.bank_id] = new_tail
+        self.client_output("%s tail server is changed to %s" % (new_tail.bank_id, new_tail))
 
 class Bank:
     def __init__(self, bank_id):
@@ -285,6 +732,9 @@ class Account:
     def increase(self, amount):
         self.balance += amount
 
+    def __str__(self):
+        return "%s (balance: %d)" % (self.account_id, self.balance)
+
 class Request:
     def __init__(self, req_id, type, bank_id, account_id, amount):
         self.req_id = req_id
@@ -324,13 +774,20 @@ class Acknowledge:
         return "ReqID: %s, BankUpdateSeq: %d" % (self.req_id, self.bank_update_seq)
 
 class ClientConfig:
-    def __init__(self, json_client, json_banks):
+    def __init__(self, json_client, json_banks, common_config_json):
+        type_dict = {
+            'QUERY' : RequestType.QUERY,
+            'DEPOSIT' : RequestType.DEPOSIT,
+            'WITHDRAW' : RequestType.WITHDRAW
+        }
         self.client_id = json_client[JSON_CLIENTID]
+        self.wait_timeout = json_client[JSON_WAIT_TIMEOUT]
+        self.resend_num = json_client[JSON_RESEND_NUM]
+        self.resend_newhead = json_client[JSON_RESEND_NEWHEAD]
         self.request_list = []
         if not JSON_REQSEED in json_client:
             json_requests = json_client[JSON_REQUESTS]
             for json_request in json_requests:
-                type_dict = {'QUERY':RequestType.QUERY, 'DEPOSIT':RequestType.DEPOSIT, 'WITHDRAW':RequestType.WITHDRAW}
                 bank_id = json_request[JSON_BANKID]
                 req_id = "%s.%s.%d" % (bank_id, self.client_id, json_request[JSON_SEQ])
                 account_id = json_request[JSON_ACCOUNTID]
@@ -347,31 +804,42 @@ class ClientConfig:
             json_reqseed = json_client[JSON_REQSEED]
             req_num = json_reqseed[JSON_REQNUM]
             for i in range(0, req_num):
-              account_num = json_reqseed[JSON_ACCOUNTNUM]
-              max_amount = json_reqseed[JSON_MAXAMOUNT]
-              prob_query = json_reqseed[JSON_PROBQUERY]
-              prob_withdraw = json_reqseed[JSON_PROBWITHDRAW]
-              prob_deposit = json_reqseed[JSON_PROBDEPOSIT]
-              weight = {RequestType.QUERY:prob_query, RequestType.DEPOSIT:prob_deposit, RequestType.WITHDRAW:prob_withdraw}
-              items = list(weight.keys())
-              req_type = random_req_type(weight, items)     
-              bank_seq = random.randint(0, len(json_banks)-1)
-              bank_id = json_banks[bank_seq][JSON_BANKID] 
-              account_seq = random.randint(1, account_num)
-              account_id = "account%d" % (account_seq)
-              if (req_type == RequestType.QUERY):
-                  amount = 0
-              else:
-                  amount = random.randint(1, int(max_amount))
-              req_id = "%s.%s.%d" % (bank_id, self.client_id, i+1)
-              request = Request(req_id, req_type, bank_id, account_id, amount)
-              self.request_list.append(request)
-              print('req_id=%s, bank_id=%s, account_id=%s, amount=%d, req_type=%s' % (
+                account_num = json_reqseed[JSON_ACCOUNTNUM]
+                max_amount = json_reqseed[JSON_MAXAMOUNT]
+                prob_query = json_reqseed[JSON_PROBQUERY]
+                prob_withdraw = json_reqseed[JSON_PROBWITHDRAW]
+                prob_deposit = json_reqseed[JSON_PROBDEPOSIT]
+                weight = {RequestType.QUERY:prob_query, RequestType.DEPOSIT:prob_deposit, RequestType.WITHDRAW:prob_withdraw}
+                items = list(weight.keys())
+                req_type = random_req_type(weight, items)
+                bank_seq = random.randint(0, len(json_banks)-1)
+                bank_id = json_banks[bank_seq][JSON_BANKID]
+                account_seq = random.randint(1, account_num)
+                account_id = "account%d" % (account_seq)
+                if (req_type == RequestType.QUERY):
+                    amount = 0
+                else:
+                    amount = random.randint(1, int(max_amount))
+                req_id = "%s.%s.%d" % (bank_id, self.client_id, i+1)
+                request = Request(req_id, req_type, bank_id, account_id, amount)
+                self.request_list.append(request)
+                print('req_id=%s, bank_id=%s, account_id=%s, amount=%d, req_type=%s' % (
                   req_id, bank_id, account_id, amount, req_type))
+
+        drop_interval = json_client.get(JSON_UDP_DROP_INTERVAL)
+        if drop_interval:
+            if drop_interval == JSON_RANDOM:
+                self.drop_interval = random.randint(2, len(self.request_list) - 1)
+                print("%s drop reply interval is %d" %
+                       (self.client_id, self.drop_interval))
+            else:
+                self.drop_interval = int(seq)
+        else:
+            self.drop_interval = 0
 
 def random_req_type(weight, items):
     mysum = 0
-    breakpoints = []    
+    breakpoints = []
     for i in items:
         mysum += weight[i]
         breakpoints.append(mysum)
@@ -379,15 +847,44 @@ def random_req_type(weight, items):
     i = bisect.bisect(breakpoints, score)
     return items[i]
 
-def read_config(path):
-    # XXX python exception is not supported in Distalgo?
-    f = open(path, 'r')
-    sjson = json.load(f)
+class MasterConfig:
+    def __init__(self, config_json):
+        self.check_alive_interval = config_json[JSON_SERVER_REPORT_INTERVAL]
+        self.fail_timeout = config_json[JSON_SERVER_FAIL_TIMEOUT]
 
-    config_clients = []
-    for config in sjson[JSON_CLIENTS]:
-        config_clients.append(ClientConfig(config, sjson[JSON_BANKS]))
-    return sjson, config_clients
+class ServerConfig:
+    def __init__(self, server_json, config_json):
+        self.server_id = server_json[JSON_CHAINNO]
+        self.heartbeat_interval = config_json[JSON_SERVER_REPORT_INTERVAL]
+        delay = config_json.get(JSON_EXTEND_SEND_DELAY)
+        if not delay:
+            delay = 0
+        self.extend_send_delay = delay
+
+        if server_json[JSON_FAIL_SCENARIO] == JSON_UNBOUNDED:
+            self.fail_scenario = FailScenario.Unbounded
+        elif server_json[JSON_FAIL_SCENARIO] == JSON_FAIL_AFTER_SEND:
+            self.fail_scenario = FailScenario.FailAfterSend
+        elif server_json[JSON_FAIL_SCENARIO] == JSON_FAIL_AFTER_RECV:
+            self.fail_scenario = FailScenario.FailAfterRecv
+        elif server_json[JSON_FAIL_SCENARIO] == JSON_FAIL_AFTER_INTERVAL_FAIL:
+            self.fail_scenario = FailScenario.FailAfterIntervalFail
+        elif server_json[JSON_FAIL_SCENARIO] == JSON_FAIL_AFTER_SEND_IN_EXTEND:
+            self.fail_scenario = FailScenario.FailAfterSendInExtend
+        assert(self.fail_scenario)
+
+        seq = server_json.get(JSON_FAIL_SEQ)
+        if seq:
+            if seq == JSON_RANDOM:
+                self.fail_seq = random.randint(2,8)
+                print("Randomly generate server fail_seq=%d" % self.fail_seq)
+            else:
+                self.fail_seq = int(seq)
+        else:
+            self.fail_seq = 0
+
+        start_delay = server_json.get(JSON_START_DEALY)
+        self.start_delay = start_delay if start_delay else 0
 
 def main():
     config(channel="fifo")
@@ -395,33 +892,76 @@ def main():
     if len(sys.argv) != 2:
         print("Usage: python3 -m da %s config_file_path" % sys.argv[0])
         sys.exit(1)
-    json_doc, client_configs = read_config(sys.argv[1])
 
+    # XXX python exception is not supported in Distalgo ?
+    f = open(sys.argv[1], 'r')
+    json_doc = json.load(f)
+
+    common_config_json = json_doc['config']
+
+    # read client configs
+    client_configs = []
+    for config in json_doc[JSON_CLIENTS]:
+        client_configs.append(ClientConfig(config, json_doc[JSON_BANKS],
+                                           common_config_json))
+
+    bank_jsons = {}
     bank_heads = {}
     bank_tails = {}
+    bank_chains = {}
 
-    for bank in json_doc[JSON_BANKS]:
-        num_server = bank['chainlen']
-        bank_id = bank['bankid']
+    # create master
+    master = new(Master, num=1)
+
+    # create bank server
+    for bank_json in json_doc[JSON_BANKS]:
+        num_server = len(bank_json['servers'])
+        bank_id = bank_json['bankid']
         servers = list(new(Server, num = num_server))
-        for (i, server) in enumerate(servers):
-            if i == 0:
-                bank_heads[bank_id] = server
-                prev = None
-            else:
-                prev = servers[i-1]
+        bank_chains[bank_id] = BankServerChain(bank_id, servers)
+        bank_heads[bank_id] = bank_chains[bank_id].head
+        bank_tails[bank_id] = bank_chains[bank_id].tail
+        bank_jsons[bank_id] = bank_json
 
-            if i == num_server - 1:
-                bank_tails[bank_id] = server
-                succ = None
-            else:
-                succ = servers[i+1]
+    # setup and run bank server
+    for bank_id, chain in bank_chains.items():
+        bank_json = bank_jsons[bank_id]
+        for i, server in enumerate(chain.servers):
+            prev = chain.servers[i-1] if i > 0 else None
+            succ = chain.servers[i+1] if i < len(chain.servers) - 1 else None
+            server_json = bank_json['servers'][i]
+            server_config = ServerConfig(server_json, common_config_json)
+            assert(server_config.start_delay == 0)
+            assert(server_config.server_id == i + 1)
+            setup(server.process, (server_config.server_id, bank_id,
+                    prev, succ, master, bank_heads, server_config))
+            start(server.process)
 
-            setup(server, (i, bank_id, prev, succ))
-            start(server)
+        extendings_json = bank_json.get('extend_servers')
+        if extendings_json:
+            for extending_json in extendings_json:
+                server = new(Server, num = 1)
+                server_config = ServerConfig(extending_json, common_config_json)
+                assert(server_config.start_delay > 0)
+                setup(server, (server_config.server_id, bank_id, None, None,
+                               master, bank_heads, server_config))
+                start(server)
 
+    # create and setup clients
+    clients = []
     for client_config in client_configs:
         client = new(Client, num = 1)
-        setup(client, (client_config, bank_heads, bank_tails))
-        start(client)
+        setup(client, (bank_heads, bank_tails, client_config))
+        clients.extend(list(client))
 
+    # setup and run master
+    master_config = MasterConfig(common_config_json)
+    setup(master, (master_config, bank_chains, clients))
+    start(master)
+
+    # make sure server / master is up and perfromed some heartbeat
+    time.sleep(1)
+
+    # run client
+    for client in clients:
+        start(client)
