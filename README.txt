@@ -42,7 +42,7 @@ Fedora:
 
 [Running: C++]
 
-1. Run test cases manually
+1. Run test cases manually [TODO edit]
 
 	$ cd <chain-replication>/src-cpp
 	$ server/server -c ../config/test4.json -b bank1 -n 1 -l ../logs &
@@ -64,7 +64,7 @@ Fedora:
 	...
 
 3. Logging
-	
+
 	$ cd <chain-replication>/logs
 	$ cat server_bank1_No1.INFO
 	$ cat server_bank2_No1.INFO
@@ -90,6 +90,7 @@ MAIN FILES
 ----------
 
 src-cpp/
+  master/master.{h,cc}	# Chain server code
   server/server.{h,cc}	# Chain server code
   client/client.{h,cc}	# Client code
   common/message.{h,cc,proto}	# Communication
@@ -101,8 +102,8 @@ src-da/
 BUGS AND LIMITATIONS
 --------------------
 
-- Server can handle only one TCP incoming connection at a time, which is
-sufficient for this phase since we do not have master.
+- The send() in Distalgo always succeeds even though the destination is down.
+  This behavior impacts how we implement aborting extending gracefully.
 
 
 CONTRIBUTIONS
@@ -110,12 +111,12 @@ CONTRIBUTIONS
 
 C++
 - Communication (Kelong)
-- Chain/Bank state machine (Dandan)
+- Master/Server/Client state machine (Dandan)
 - Logging (Dandan)
 - Configuration (Dandan)
 
 Distalgo (Python)
-- Chain/Bank state machine (Kelong)
+- Master/Server/Client state machine (Kelong)
 - Logging (Kelong)
 - Configuration (Dandan)
 

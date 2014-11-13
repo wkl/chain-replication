@@ -74,6 +74,9 @@ class Node:
     def set_report_time(self):
         self.last_report_time = datetime.datetime.now()
 
+    # return True if master doesn't hear the node for a while
+    # "become" means the node was not crashed before this check
+    # and the node has reported once successfully before.
     def become_crashed(self, fail_timeout):
         if self.crashed or not self.last_report_time:
             return False
@@ -84,6 +87,8 @@ class Node:
 
         return self.crashed
 
+    # two nodes are identical as long as TCPEndPoint is same regardless
+    # other fields like last_report_time
     def __eq__(self, other):
         if isinstance(other, self.__class__):
             return self.process == other.process
@@ -144,6 +149,7 @@ class Master(process):
     def master_output(log):
         output("[master] %s\n\n" % log)
 
+    # run periodically
     def check_alive():
         for bank_id, chain in bank_chains.items():
             for node in chain.servers:
@@ -199,17 +205,20 @@ class Master(process):
             node.set_report_time()
             # self.master_output("Heartbeat from %s" % node)
 
+    # during internal failure, master forward the seq num from succ to prev
     def receive(msg=('ACK_NEW_PREV_SERVER', bank_id, succ_sn), from_=succ):
         succ_server = bank_chains[bank_id].get_node(succ)
         prev_server = bank_chains[bank_id].prev_server(succ_server)
         send(('NEW_SUCC_SERVER', succ_server, succ_sn), to=prev_server.process)
 
+    # the delayed server initiates an extending request.
     def receive(msg=('JOIN_CHAIN_REQUEST', server_id, bank_id), from_=s):
         new_tail = Node(bank_id, server_id, s)
         send(('NEW_TAIL_COME', new_tail), to=bank_chains[bank_id].tail.process)
         bank_chains[bank_id].servers.append(new_tail)
         bank_chains[bank_id].extending_node = new_tail
 
+    # the new (extending) tail starts to act as tail.
     def receive(msg=('NEW_TAIL_READY', server_id, bank_id), from_=s):
         new_tail = bank_chains[bank_id].extending_node
         assert(new_tail.server_id == server_id)
@@ -278,7 +287,7 @@ class Server(process):
 
     def receive(msg=('REQUEST', req), from_=c):
         self.recv_msg_seq += 1
-        with self.snapshot_lock:
+        with self.snapshot_lock: # block request when preparing snapshot
             self.process_req(req, c)
 
     def process_req(req, c):
@@ -344,6 +353,7 @@ class Server(process):
         if len(self.sent) > 0:
             ack_req = self.sent[-1]
 
+        # move request from sent list to processed list
         while len(self.sent) > 0:
             req = self.sent.popleft()
             self.insert_processed_list(req)
@@ -353,6 +363,7 @@ class Server(process):
 
         self.server_output("Ready to be tail server")
 
+    # during internal failure, S- sends request to S+
     def receive(msg=('NEW_SUCC_SERVER', server, succ_sn), from_=m):
         self.recv_msg_seq += 1
         succ = server
@@ -365,6 +376,7 @@ class Server(process):
                 if req.bank_update_seq > succ_sn:
                     self.forward_request(req) # will increase send_msg_seq
 
+    # during internal failure, S+ tells master to forward its seq num to S-
     def receive(msg=('NEW_PREV_SERVER', server), from_=m):
         self.recv_msg_seq += 1
         prev = server
@@ -373,12 +385,14 @@ class Server(process):
         self.internal_crashing = True
         send(('ACK_NEW_PREV_SERVER', self.bank_id, self.bank_update_seq), to=master)
 
+    # notified new head of bank which will be used in transfer
     def receive(msg=('NEW_HEAD', new_head), from_=m):
         self.recv_msg_seq += 1
         bank_heads[new_head.bank_id] = new_head
         self.server_output("%s head server is changed to %s" % (new_head.bank_id, new_head))
         self.if_server_crash()
 
+    # during extending, the new node may crash, master will notify the tail to abort
     def receive(msg=('ABORT_EXTENDING',), from_=m):
         self.abort_extending = True
         self.server_output("Notified to abort extending")
@@ -405,6 +419,7 @@ class Server(process):
         self.is_tail = True
         self.extending_chain = False
 
+    # used in extending, the current tail is notified there comes new pending tail
     def receive(msg=('NEW_TAIL_COME', new_tail), from_=m):
         self.recv_msg_seq += 1
         self.server_output("Notified new tail %s wants to join" % new_tail)
@@ -413,6 +428,8 @@ class Server(process):
         self.extending_chain = True
         self.abort_extending = False
         succ = new_tail
+        # create new thread to replicate the history to new tail which may take
+        # a while. Meanwhile it continues processing the new request.
         t = threading.Thread(target=self.process_new_tail_come)
         t.daemon = False
         t.start()
@@ -420,6 +437,8 @@ class Server(process):
     # run in background thread
     def process_new_tail_come():
         self.server_output("Creating thread to send history to new tail")
+
+        # prepare snapshot to be sent to the new tail
         with self.snapshot_lock:
             processed_snapshot = copy.deepcopy(self.processed)
             bank_snapshot = copy.deepcopy(self.bank)
@@ -431,6 +450,7 @@ class Server(process):
              to=succ.process)
         self.if_server_crash()
 
+        # send account and history piece by piece (one account at a time)
         for account_id, account_processed in processed_snapshot.items():
             if self.abort_extending:
                 return
@@ -442,6 +462,7 @@ class Server(process):
             self.if_server_crash()
 
         with self.snapshot_lock:
+            # send sent list in one shot
             send(('OLD_TAIL_SENT_LIST', self.sent), to=succ.process)
 
             self.sent.clear()
@@ -451,34 +472,39 @@ class Server(process):
             if self.abort_extending:
                 self.is_tail = True
 
+    # the extending node is notified to receive history from old tail
     def receive(msg=('BEGIN_OLD_TAIL_HISTORY', server_id, sn_snapshot), from_=s):
         self.recv_msg_seq += 1
         prev = Node(bank_id, server_id, s)
         self.server_output("Ready to receive history from old tail: %s, sn: %s"
                            % (prev, sn_snapshot))
         self.if_server_crash()
+
+        # initialize states to empty because old tail may crash and we will
+        # receive from the second old tail instead.
         self.bank.accounts = {}
         self.processed = {}
         self.sent = deque()
         self.bank_update_seq = sn_snapshot
 
+    # the extending node receives one account and its history from old tail
     def receive(msg=('OLD_TAIL_HISTORY', account, account_processed), from_=s):
         self.recv_msg_seq += 1
         account_id = account.account_id
         self.server_output("Receiving old tail history: %s" % account_id)
         self.if_server_crash()
-        self.bank.accounts[account_id] = account # copy?
+        self.bank.accounts[account_id] = account
         self.processed[account_id] = account_processed
 
+    # the extending node receives all sent list from old tail
     def receive(msg=('OLD_TAIL_SENT_LIST', old_tail_sent), from_=s):
         self.recv_msg_seq += 1
         self.server_output("Receiving sent list (%d) from old tail: %s" %
                             (len(old_tail_sent), prev))
         self.if_server_crash()
-        print(self.bank_update_seq)
         for req in old_tail_sent:
-            print(req, "sn", req.bank_update_seq)
             if req.bank_update_seq > self.bank_update_seq:
+                # apply the update but do not reply
                 self.bank_update_seq = req.bank_update_seq
                 self.update_request_reply(req)
                 self.insert_processed_list(req)
@@ -492,7 +518,6 @@ class Server(process):
         self.send_msg_seq += 1
         self.server_output("(%d) Forwarding req to %s: %s" % (self.send_msg_seq, succ, req))
         # output("sent list: %s" % self.sent)
-        # self.server_output("%s" % self.bank.accounts['account1'])
         send(("REQUEST", req), to=succ.process)
         self.if_server_crash()
 
@@ -599,6 +624,7 @@ class Server(process):
         req.reply = reply
         self.reply_to_client(req)
 
+    # check lifetime of server to simulate the crash
     def if_server_crash():
         if config.fail_scenario == FailScenario.Unbounded:
             return
@@ -650,7 +676,7 @@ class Client(process):
             resend_count = 0
             while True:
                 if resend_count == 0:
-                    time.sleep(1)
+                    time.sleep(1)   # interval between each new request
                 if await(self.recv[req.req_id]):
                     break
                 elif timeout(config.wait_timeout):
@@ -660,7 +686,7 @@ class Client(process):
                         self.client_output("retried %d times, abort request"
                                             % config.resend_num)
                         break
-                    if config.resend_newhead:
+                    if config.resend_newhead:   # get new head/tail if enabled
                         if req.type == RequestType.QUERY:
                             target = bank_tails[req.bank_id]
                         else:
@@ -670,7 +696,7 @@ class Client(process):
                                 (resend_count, config.resend_num, req.req_id))
                     send(('REQUEST', req), to=target.process)
 
-        await(0) # all requets complete, waiting for notification
+        await(0) # all requests complete, waiting for notification
 
     def receive(msg=('REPLY', reply), from_=s):
         self.reply_count += 1
@@ -937,6 +963,7 @@ def main():
                     prev, succ, master, bank_heads, server_config))
             start(server.process)
 
+        # create, setup and run extending server
         extendings_json = bank_json.get('extend_servers')
         if extendings_json:
             for extending_json in extendings_json:
@@ -959,7 +986,7 @@ def main():
     setup(master, (master_config, bank_chains, clients))
     start(master)
 
-    # make sure server / master is up and perfromed some heartbeat
+    # make sure server / master is up and has performed some heartbeat
     time.sleep(1)
 
     # run client
