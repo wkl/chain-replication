@@ -42,17 +42,15 @@ Fedora:
 
 [Running: C++]
 
-1. Run test cases manually [TODO edit]
+1. Run test cases manually
 
 	$ cd <chain-replication>/src-cpp
-	$ server/server -c ../config/test4.json -b bank1 -n 1 -l ../logs &
-	$ server/server -c ../config/test4.json -b bank2 -n 1 -l ../logs &
-	$ server/server -c ../config/test4.json -b bank2 -n 2 -l ../logs &
-	$ server/server -c ../config/test4.json -b bank3 -n 1 -l ../logs &
-	$ server/server -c ../config/test4.json -b bank3 -n 2 -l ../logs &
-	$ server/server -c ../config/test4.json -b bank3 -n 3 -l ../logs &
-	$ client/client -c ../config/test4.json -l ../logs
+	$ master/master -c ../config/test1.json -l ../logs &
+	$ server/server -c ../config/test1.json -b bank1 -n 1 -l ../logs &
+	$ server/server -c ../config/test1.json -b bank1 -n 2 -l ../logs &
+	$ client/client -c ../config/test1.json -l ../logs
 	$ killall server
+	$ killall master
 
 2. Run test cases with script (preferred)
 
