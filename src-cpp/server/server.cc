@@ -268,27 +268,27 @@ void send_req_to_extend_server() {
       send_req_seq_extend++;
       cs->if_server_crash();     
     }
-  }
-  // send fin to extend server
-  proto::ExtendMsg extend_msg_fin;
-  extend_msg_fin.set_type(proto::ExtendMsg::FIN);
-  send_res = send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg_fin);
-  if (!send_res) {
-    LOG(INFO) << "Server can't get connect to new extended server, give up"
+    // send fin to extend server
+    proto::ExtendMsg extend_msg_fin;
+    extend_msg_fin.set_type(proto::ExtendMsg::FIN);
+    send_res = send_msg_tcp(cs->succ_server_addr(), proto::Message::EXTEND_MSG, extend_msg_fin);
+    if (!send_res) {
+      LOG(INFO) << "Server can't get connect to new extended server, give up"
+                << endl << endl;
+      return;
+    }  
+    else {
+      LOG(INFO) << "Server sent tcp message to " << cs->succ_server_addr().ip() << ":"
+                << cs->succ_server_addr().port()
+                << endl << extend_msg_fin.ShortDebugString() << endl << endl;  
+    }  
+    // stop acting as a tail server
+    LOG(INFO) << "Stop acting as the tail server" 
               << endl << endl;
-    return;
-  }  
-  else {
-    LOG(INFO) << "Server sent tcp message to " << cs->succ_server_addr().ip() << ":"
-              << cs->succ_server_addr().port()
-              << endl << extend_msg_fin.ShortDebugString() << endl << endl;  
-  }  
-  // stop acting as a tail server
-  LOG(INFO) << "Stop acting as the tail server" 
-            << endl << endl;
-  cs->set_extending_chain(false);
-  cs->set_finish_sending_hist(false);
-  cs->set_istail(false);
+    cs->set_extending_chain(false);
+    cs->set_finish_sending_hist(false);
+    cs->set_istail(false);
+  }
 }
 
 // extend server receive request(account, processed_list, sent_list, fin) from current tail
