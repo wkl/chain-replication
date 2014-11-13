@@ -41,7 +41,6 @@
 #define JSON_FAIL_AFTER_RECV_IN_EXTEND "fail_after_recv_in_extend"
 #define JSON_FAIL_AFTER_INTERVAL_FAIL "fail_after_interval_fail"
 #define JSON_FAIL_SEQ "failseq"
-#define JSON_TCP_TIMEOUT "tcp_timeout"
 #define JSON_REQSEED "reqseed"
 #define JSON_RANDOM "random"
 #define JSON_UDP_DROP_INTERVAL "udp_drop_interval"

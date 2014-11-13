@@ -2,7 +2,6 @@
     "config": {
         "server_report_interval": 1,
         "server_fail_timeout": 3,
-        "tcp_timeout": 1,
         "udp_drop_interval": "0",
         "extend_send_delay": 1
     },
@@ -27,7 +26,7 @@
                     "chainno": 2,
                     "startdelay": 0,
                     "failscenario": "fail_after_send_in_extend",
-                    "failseq": "3"
+                    "failseq": "2"
                 }
             ],
             "extend_servers": [

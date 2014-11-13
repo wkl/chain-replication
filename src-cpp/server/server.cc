@@ -8,7 +8,6 @@ namespace po = boost::program_options;
 std::unique_ptr<ChainServer> cs;
 proto::Address master_addr;
 int heartbeat_interval;	// in sec
-int tcp_timeout;  // in sec
 int send_req_seq_extend = 0;
 std::mutex mutex_lock;
 
@@ -19,8 +18,8 @@ void ChainServerUDPLoop::handle_msg(proto::Message& msg,
     case proto::Message::REQUEST:
       assert(msg.has_request());
       LOG(INFO) << "Server received udp message from " << from_addr.ip() << ":"
-                << from_addr.port() << ", recv_req_seq = " << rec_msg_seq
-                << endl << msg.ShortDebugString() << endl << endl;
+                << from_addr.port() << endl 
+                << msg.ShortDebugString() << endl << endl;
       cs->if_server_crash();
       cs->receive_request(msg.mutable_request());
       break;
@@ -35,7 +34,7 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg,
                                     proto::Address& from_addr) {
   rec_msg_seq++;
   LOG(INFO) << "Server received tcp message from " << from_addr.ip() << ":"
-            << from_addr.port() << ", recv_req_seq = " << rec_msg_seq << endl
+            << from_addr.port() << endl
             << msg.ShortDebugString() << endl << endl;
   cs->if_server_crash();
   cs->set_internal_crashing(false); 
@@ -295,13 +294,14 @@ void send_req_to_extend_server() {
 // extend server receive request(account, processed_list, sent_list, fin) from current tail
 void ChainServer::receive_extend_msg(const proto::ExtendMsg& extend_msg) {
   if (extend_msg.type() == proto::ExtendMsg::START) {
-    // TODO: clear processed_list, bank_update_seq, pre_server_addr, bank.account
+    // clear processed_list, bank_update_seq, pre_server_addr, bank.account
     processed_map_.clear();
     bank_.account_map().clear();
     bank_update_seq_ = 0;
     pre_server_addr_ = extend_msg.server_addr();
     LOG(INFO) << "Server begins to receive history records from current tail server " 
               << cs->pre_server_addr().ip() << ":" << cs->pre_server_addr().port()
+              << ", clear previous records if there's any"
               << endl << endl;
     return;
   }
@@ -399,8 +399,8 @@ void ChainServer::forward_request(const proto::Request& req) {
   if (send_msg_tcp(succ_server_addr_, proto::Message::REQUEST, req)) {  // send tcp message successfully
     send_msg_seq++;
     LOG(INFO) << "Server sent tcp message to " << succ_server_addr_.ip() << ":"
-              << succ_server_addr_.port() << ", send_req_seq = " << send_msg_seq
-              << endl << req.ShortDebugString() << endl << endl;
+              << succ_server_addr_.port() << endl 
+              << req.ShortDebugString() << endl << endl;
     if_server_crash();  // for FailAfterSend & FailAfterSendInExtend scenario
   }
 }
@@ -414,7 +414,7 @@ void ChainServer::reply_to_client(const proto::Request& req) {
   send_msg_udp(local_addr_, client, proto::Message::REPLY, reply);
   send_msg_seq++;
   LOG(INFO) << "Server sent udp message to " << client.ip() << ":"
-            << client.port() << ", send_req_seq = " << send_msg_seq << endl
+            << client.port() << endl
             << reply.ShortDebugString() << endl << endl;
   if_server_crash();  // for FailAfterSend & FailAfterSendInExtend scenario
 }
@@ -424,7 +424,7 @@ void ChainServer::sendback_ack(const proto::Acknowledge& ack) {
   if (send_msg_tcp(pre_server_addr_, proto::Message::ACKNOWLEDGE, ack)) { // send tcp message successfully
     send_msg_seq++;
     LOG(INFO) << "Server sent tcp message to " << pre_server_addr_.ip() << ":"
-              << pre_server_addr_.port() << ", send_req_seq = " << send_msg_seq
+              << pre_server_addr_.port()
               << endl << ack.ShortDebugString() << endl << endl;
     if_server_crash();  // for FailAfterSend & FailAfterSendInExtend scenario
   }
@@ -764,7 +764,10 @@ void heartbeat() {
   if (cs->start_delay() > 0) {  // for extended servers
     std::this_thread::sleep_for(std::chrono::seconds(cs->start_delay()));
     LOG(INFO) << "Extended Server starts up after " 
-              << cs->start_delay() << " sec delay" 
+              << cs->start_delay() << " sec delay, " 
+              << "send join request to master "
+              << master_addr.ip() << ":"
+              << master_addr.port()
               << endl << endl;
     proto::Join join;
     join.set_bank_id(cs->bank_id());
@@ -822,7 +825,6 @@ int read_config_server(string dir, string bankid, int chainno) {
       cs->set_bank(bank);
       cs->set_start_delay(server_json[JSON_START_DEALY].asInt());
       heartbeat_interval = root[JSON_CONFIG][JSON_SERVER_REPORT_INTERVAL].asInt();
-      tcp_timeout = root[JSON_CONFIG][JSON_TCP_TIMEOUT].asInt();
       if (!root[JSON_CONFIG].isMember(JSON_EXTEND_SEND_DELAY))
         cs->set_extend_send_delay(0);
       else {

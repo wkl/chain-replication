@@ -2,7 +2,6 @@
     "config": {
         "server_report_interval": 1,
         "server_fail_timeout": 3,
-        "tcp_timeout": 1,
         "udp_drop_interval": "0",
         "extend_send_delay": 1
     },

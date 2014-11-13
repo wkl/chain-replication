@@ -12,7 +12,7 @@ void notify_internal_crash_to_preserver(const proto::Reqseq& req_seq);
 void MasterTCPLoop::handle_msg(proto::Message& msg, proto::Address& from_addr) {
   rec_msg_seq++;
   LOG(INFO) << "Master received tcp message from " << from_addr.ip() << ":"
-      << from_addr.port() << ", recv_req_seq = " << rec_msg_seq << endl
+      << from_addr.port() << endl
       << msg.ShortDebugString() << endl << endl;
 
   switch (msg.type()) {
@@ -83,7 +83,10 @@ void Master::handle_join(const proto::Join& join) {
   bsc.append_node(node); 
   LOG(INFO) << "Receive join request from server " 
             << join.server_addr().ip() << ":" << join.server_addr().port() 
-            << " of bank " << join.bank_id() 
+            << " of bank " << join.bank_id() << ", "
+            << "notify current tail server "
+            << bsc.pre_server_addr(node).ip() << ":"
+            << bsc.pre_server_addr(node).port()
             << endl << endl;
   send_msg_tcp(bsc.pre_server_addr(node), proto::Message::EXTEND_SERVER,
                join.server_addr()); 
@@ -187,12 +190,18 @@ void notify_crash(BankServerChain& bsc, Node& node) {
                    bsc.extending()); 
     }                          
   } else if (node != bsc.head() && node != bsc.tail() && node!=bsc.extending()) {  // internal crashed
+    LOG(INFO) << "Notify S+ server " 
+              << bsc.succ_server_addr(node).ip() << ":" 
+              << bsc.succ_server_addr(node).port() 
+              << " of bank " << bsc.bank_id() 
+              << " that S server " 
+              << node.addr().ip() << ":"
+              << node.addr().port()
+              << " has crashed" 
+              << endl <<endl;  
     send_msg_tcp(bsc.succ_server_addr(node), proto::Message::NEW_PRE_SERVER,
                  bsc.pre_server_addr(node));
     bsc.remove_node(node);
-    LOG(INFO) << "Notify S+ server of bank " << bsc.bank_id() 
-              << " that S server has crashed" 
-              << endl <<endl;
   } else {  // extending server crashed
     assert(node==bsc.extending());
     proto::Message empty_msg;
@@ -208,11 +217,17 @@ void notify_crash(BankServerChain& bsc, Node& node) {
 }
 
 void notify_internal_crash_to_preserver(const proto::Reqseq& req_seq) {
-  send_msg_tcp(req_seq.pre_addr(), proto::Message::NEW_SUCC_SERVER, req_seq);
-  LOG(INFO) << "Notify S- server of bank " << req_seq.bank_id()
-            << " that S server has crashed with req_seq="
+  LOG(INFO) << "Notify S- server "
+            << req_seq.pre_addr().ip() << ":" 
+            << req_seq.pre_addr().port()
+            << " of bank " << req_seq.bank_id()
+            << " that S server has crashed, new succ server is "
+            << req_seq.succ_addr().ip() << ":"
+            << req_seq.succ_addr().port()
+            << ", req_seq="
             << req_seq.bank_update_seq()
             << endl << endl;
+  send_msg_tcp(req_seq.pre_addr(), proto::Message::NEW_SUCC_SERVER, req_seq);
 }
 
 void check_alive() {

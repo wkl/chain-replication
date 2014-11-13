@@ -2,7 +2,6 @@
     "config": {
         "server_report_interval": 1,
         "server_fail_timeout": 3,
-        "tcp_timeout": 1,
         "udp_drop_interval": "0"
     },
     "master": {
@@ -27,7 +26,14 @@
                     "chainno": 2,
                     "startdelay": 0,
                     "failscenario": "none"
-                }
+                },
+                {
+                    "ip": "127.0.0.1",
+                    "port": 50003,
+                    "chainno": 3,
+                    "startdelay": 0,
+                    "failscenario": "none"
+                }                
             ]
         }
     ],

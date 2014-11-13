@@ -2,7 +2,6 @@
     "config": {
         "server_report_interval": 1,
         "server_fail_timeout": 3,
-        "tcp_timeout": 1,
         "udp_drop_interval": "random"
     },
     "master": {
@@ -74,7 +73,13 @@
                     "seq": 5,
                     "type": "WITHDRAW",
                     "amount": 400
-                }
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "seq": 6,
+                    "type": "QUERY"
+                }                
             ]
         }
     ]
