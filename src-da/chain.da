@@ -418,6 +418,7 @@ class Server(process):
         self.sent.clear()
         self.is_tail = True
         self.extending_chain = False
+        self.server_output("sent list is cleared")
 
     # used in extending, the current tail is notified there comes new pending tail
     def receive(msg=('NEW_TAIL_COME', new_tail), from_=m):
