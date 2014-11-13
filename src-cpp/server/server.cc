@@ -350,6 +350,7 @@ void ChainServer::extending_server_fail() {
   cs->set_extending_chain(false);
   cs->set_finish_sending_hist(false);
   cs->sent_list().clear(); 
+  cs->set_istail(true);
   LOG(INFO) << "Notified that the new extending server is crashed, sent list is cleared"
             << endl << endl;
 }
