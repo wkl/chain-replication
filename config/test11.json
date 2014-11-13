@@ -57,63 +57,63 @@
                 },
                 {
                     "bankid": "bank1",
-                    "accountid": "account1",
+                    "accountid": "account2",
                     "seq": 2,
-                    "type": "WITHDRAW",
-                    "amount": 100
-                },
+                    "type": "DEPOSIT",
+                    "amount": 10000
+                },                
                 {
                     "bankid": "bank1",
                     "accountid": "account1",
                     "seq": 3,
                     "type": "WITHDRAW",
-                    "amount": 200
+                    "amount": 100
                 },
                 {
                     "bankid": "bank1",
-                    "accountid": "account1",
+                    "accountid": "account2",
                     "seq": 4,
                     "type": "WITHDRAW",
-                    "amount": 300
-                },
+                    "amount": 1000
+                },                
                 {
                     "bankid": "bank1",
                     "accountid": "account1",
                     "seq": 5,
                     "type": "WITHDRAW",
-                    "amount": 400
+                    "amount": 200
                 },
                 {
                     "bankid": "bank1",
-                    "accountid": "account1",
+                    "accountid": "account2",
                     "seq": 6,
-                    "type": "DEPOSIT",
-                    "amount": 10000
-                },
+                    "type": "WITHDRAW",
+                    "amount": 2000
+                },                
                 {
                     "bankid": "bank1",
                     "accountid": "account1",
                     "seq": 7,
                     "type": "WITHDRAW",
-                    "amount": 1000
+                    "amount": 300
                 },
                 {
                     "bankid": "bank1",
-                    "accountid": "account1",
+                    "accountid": "account2",
                     "seq": 8,
                     "type": "WITHDRAW",
-                    "amount": 2000
-                },
+                    "amount": 3000
+                },                
                 {
                     "bankid": "bank1",
                     "accountid": "account1",
                     "seq": 9,
                     "type": "WITHDRAW",
-                    "amount": 3000
+                    "amount": 400
                 },
                 {
                     "bankid": "bank1",
-                    "accountid": "account1",
+                    "accountid": "account2",
                     "seq": 10,
                     "type": "WITHDRAW",
                     "amount": 4000
