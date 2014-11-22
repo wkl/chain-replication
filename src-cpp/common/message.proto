@@ -45,7 +45,7 @@ message Request {
 		DEPOSIT = 1;
 		WITHDRAW = 2;
 		TRANSFER = 3;
-		TRANSFERTO = 4;
+		TRANSFER_TO = 4;
 	}
 	enum CheckRequest {
 		INCONSISTENT = 0;
@@ -73,7 +73,7 @@ message Reply {
 	}
 	required string req_id = 1;
 	required Outcome outcome = 2;
-  required string account_id = 3;
+	required string account_id = 3;
 	optional float balance = 4;
 }
 
@@ -92,10 +92,10 @@ message Notify {
 }
 
 message Reqseq {
-  required uint32 bank_update_seq = 1;
-  required string bank_id = 2;
-  required Address pre_addr = 3;
-  required Address succ_addr = 4;
+	required uint32 bank_update_seq = 1;
+	required string bank_id = 2;
+	required Address pre_addr = 3;
+	required Address succ_addr = 4;
 }
 
 message Join {
@@ -104,22 +104,22 @@ message Join {
 }
 
 message Account {
-  required string account_id = 1;
-  required float balance = 2;
+	required string account_id = 1;
+	required float balance = 2;
 }
 
 message ExtendMsg {
-  enum Type {
-    ACCOUNT = 0;
-    HISTORY = 1;
-    SENT = 2;
-    FIN = 3;
-    START = 4;
-  }
-  required Type type = 1;
-  optional Request request = 2;
-  optional Account account = 3;
-  optional Address server_addr = 4;
+	enum Type {
+		ACCOUNT = 0;
+		HISTORY = 1;
+		SENT = 2;
+		FIN = 3;
+		START = 4;
+	}
+	required Type type = 1;
+	optional Request request = 2;
+	optional Account account = 3;
+	optional Address server_addr = 4;
 }
 
 message ExtendFinish {

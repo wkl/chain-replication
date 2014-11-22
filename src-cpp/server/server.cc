@@ -534,7 +534,7 @@ void ChainServer::tail_handle_update(proto::Request* req) {
   if (extending_chain_)
     insert_sent_list(*req);
 
-  if (req->type() != proto::Request::TRANSFERTO) 
+  if (req->type() != proto::Request::TRANSFER_TO) 
     reply_to_client(*req);
 
   proto::Acknowledge ack;
