@@ -20,6 +20,8 @@
 #define JSON_TRANSFER "TRANSFER"
 #define JSON_BANKID "bankid"
 #define JSON_ACCOUNTID "accountid"
+#define JSON_DEST_BANKID "dest_bankid"
+#define JSON_DEST_ACCOUNTID "dest_accountid"
 #define JSON_SEQ "seq"
 #define JSON_TYPE "type"
 #define JSON_AMOUNT "amount"

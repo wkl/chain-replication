@@ -81,13 +81,13 @@ class Client {
   };
 
   // return a copy of address
-  proto::Address get_bank_head(string bankid) {
+  proto::Address get_bank_head(const string& bankid) {
       auto it_head = bank_head_list_.find(bankid);
       assert(it_head != bank_head_list_.end());
       return it_head->second;
   }
 
-  proto::Address get_bank_tail(string bankid) {
+  proto::Address get_bank_tail(const string& bankid) {
       auto it_tail = bank_tail_list_.find(bankid);
       assert(it_tail != bank_tail_list_.end());
       return it_tail->second;

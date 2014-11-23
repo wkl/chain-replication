@@ -18,7 +18,7 @@ void ChainServerUDPLoop::handle_msg(proto::Message& msg,
     case proto::Message::REQUEST:
       assert(msg.has_request());
       LOG(INFO) << "Server received udp message from " << from_addr.ip() << ":"
-                << from_addr.port() << endl 
+                << from_addr.port() << endl
                 << msg.ShortDebugString() << endl << endl;
       cs->if_server_crash();
       cs->receive_request(msg.mutable_request());
@@ -77,6 +77,10 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg,
     case proto::Message::EXTEND_FAIL:
       cs->extending_server_fail();
       break;      
+    case proto::Message::REPLY:
+      assert(msg.has_reply());
+      cs->receive_transfer_reply(msg.mutable_reply());
+      break;
     default:
       LOG(ERROR) << "no handler for message type (" << msg.type() << ")" << endl
                  << endl;
@@ -153,6 +157,8 @@ void ChainServer::receive_new_succserver(const proto::Reqseq& req_seq) {
 
 // Notified a extend server
 void ChainServer::receive_extend_server(const proto::Address& extend_addr) {
+  // TODO if sent_list is not empty, delay the extending
+  assert(sent_list_.empty());
   extending_chain_ = true;
   finish_sending_hist_ = false;
   send_req_seq_extend = 0;
@@ -412,11 +418,22 @@ void ChainServer::reply_to_client(const proto::Request& req) {
   proto::Address client;
   client.set_ip(req.client_addr().ip());
   client.set_port(req.client_addr().port());
-  send_msg_udp(local_addr_, client, proto::Message::REPLY, reply);
-  send_msg_seq++;
-  LOG(INFO) << "Server sent udp message to " << client.ip() << ":"
-            << client.port() << endl
-            << reply.ShortDebugString() << endl << endl;
+
+  if (req.type() == proto::Request::TRANSFER_TO) {
+    // use tcp to reply to upstream's tail
+    // TODO retry if upstream's tail fails..
+    send_msg_tcp(client, proto::Message::REPLY, reply);
+    send_msg_seq++;
+    LOG(INFO) << "Server sent tcp message to " << client.ip() << ":"
+              << client.port() << endl << reply.ShortDebugString() << endl
+              << endl;
+  } else {
+    send_msg_udp(local_addr_, client, proto::Message::REPLY, reply);
+    send_msg_seq++;
+    LOG(INFO) << "Server sent udp message to " << client.ip() << ":"
+        << client.port() << endl
+        << reply.ShortDebugString() << endl << endl;
+  }
   if_server_crash();  // for FailAfterSend & FailAfterSendInExtend scenario
 }
 
@@ -426,7 +443,7 @@ void ChainServer::sendback_ack(const proto::Acknowledge& ack) {
     send_msg_seq++;
     LOG(INFO) << "Server sent tcp message to " << pre_server_addr_.ip() << ":"
               << pre_server_addr_.port()
-              << endl << ack.ShortDebugString() << endl << endl;
+              << endl << "ACK: " << ack.ShortDebugString() << endl << endl;
     if_server_crash();  // for FailAfterSend & FailAfterSendInExtend scenario
   }
 }
@@ -451,6 +468,7 @@ void ChainServer::receive_request(proto::Request* req) {
     handle_query(req);
     return;
   }
+
   // processing update request
   assert(req->type() != proto::Request::QUERY);
   // head server
@@ -516,12 +534,16 @@ void ChainServer::single_handle_update(proto::Request* req) {
   update_request_reply(req);
   write_log_reply(req->reply());
 
-  if (req->check_result() == proto::Request::NEWREQ)
-    insert_processed_list(*req);
-  if (extending_chain_)
-    insert_sent_list(*req);
-    
-  reply_to_client(*req);
+  if (req->type() == proto::Request::TRANSFER) {
+    handle_transfer(*req);
+  } else {
+    if (req->check_result() == proto::Request::NEWREQ)
+      insert_processed_list(*req);
+    if (extending_chain_)
+      insert_sent_list(*req);
+
+    reply_to_client(*req);
+  }
 }
 
 // tail server handle update request
@@ -529,17 +551,23 @@ void ChainServer::tail_handle_update(proto::Request* req) {
   update_request_reply(req);
   write_log_reply(req->reply());
 
-  if (req->check_result() == proto::Request::NEWREQ)
-    insert_processed_list(*req);
-  if (extending_chain_)
-    insert_sent_list(*req);
+  if (req->type() == proto::Request::TRANSFER) {
+    handle_transfer(*req);
+  } else {
+    if (req->check_result() == proto::Request::NEWREQ)
+      insert_processed_list(*req);
+    if (extending_chain_)
+      insert_sent_list(*req);
 
-  if (req->type() != proto::Request::TRANSFER_TO) 
     reply_to_client(*req);
+  }
 
-  proto::Acknowledge ack;
-  ack.set_bank_update_seq(req->bank_update_seq());
-  sendback_ack(ack);
+  // if sent list has transfer request, send ack later
+  if (sent_list_.empty()) {
+    proto::Acknowledge ack;
+    ack.set_bank_update_seq(req->bank_update_seq());
+    sendback_ack(ack);
+  }
 }
 
 // interval server handle update request
@@ -556,8 +584,7 @@ void ChainServer::update_request_reply(proto::Request* req) {
   proto::Reply* reply = new proto::Reply;
   reply->set_req_id(req->req_id());
   reply->set_account_id(req->account_id());
-  proto::Request_CheckRequest check_result =
-      check_update_request(*req, &(*reply));
+  proto::Request_CheckRequest check_result = check_update_request(*req, reply);
   req->set_check_result(check_result);
   float balance = 0;
   switch (check_result) {
@@ -568,18 +595,17 @@ void ChainServer::update_request_reply(proto::Request* req) {
     case proto::Request::PROCESSED:
       break;
     case proto::Request::NEWREQ:
-      ChainServer::UpdateBalanceOutcome update_result = update_balance(*req);
-      if (update_result ==
-          ChainServer::UpdateBalanceOutcome::InsufficientFunds) {
+      UpdateBalanceOutcome update_result = update_balance(*req);
+      if (update_result == UpdateBalanceOutcome::InsufficientFunds) {
         reply->set_outcome(proto::Reply::INSUFFICIENT_FUNDS);
-        balance = get_balance(req->account_id());
       } else {
         reply->set_outcome(proto::Reply::PROCESSED);
-        balance = get_balance(req->account_id());
       }
+      balance = get_balance(req->account_id());
       break;
   }
-  if (check_result != proto::Request::PROCESSED) reply->set_balance(balance);
+  if (check_result != proto::Request::PROCESSED)
+    reply->set_balance(balance);
   req->set_allocated_reply(reply);
 }
 
@@ -588,7 +614,8 @@ proto::Request_CheckRequest ChainServer::check_update_request(
     const proto::Request& req, proto::Reply* reply) {
   bool new_account;
   get_or_create_account(req, new_account);
-  if (new_account) return proto::Request::NEWREQ;
+  if (new_account)
+    return proto::Request::NEWREQ;
 
   auto it = processed_map_.find(req.req_id() + "_" + req.account_id());
   if (it != processed_map_.end()) {
@@ -685,15 +712,14 @@ ChainServer::UpdateBalanceOutcome ChainServer::update_balance(
       req.type() == proto::Request::TRANSFER) {
     if (account.balance() < req.amount()) {
       return ChainServer::UpdateBalanceOutcome::InsufficientFunds;
-    } else {
-      float pre_balance = account.balance();
-      account.set_balance(account.balance() - req.amount());
-      LOG(INFO) << "Balance of account " << account.accountid() 
-                << " changes from " << pre_balance 
-                << " to " << account.balance() 
-                << endl << endl;
-      return ChainServer::UpdateBalanceOutcome::Success;
     }
+    float pre_balance = account.balance();
+    account.set_balance(account.balance() - req.amount());
+    LOG(INFO) << "Balance of account " << account.accountid()
+              << " changes from " << pre_balance
+              << " to " << account.balance()
+              << endl << endl;
+    return ChainServer::UpdateBalanceOutcome::Success;
   } else {
     float pre_balance = account.balance();
     account.set_balance(account.balance() + req.amount());
@@ -705,7 +731,8 @@ ChainServer::UpdateBalanceOutcome ChainServer::update_balance(
   }
 }
 
-// used in tail_handle_update(req), single_handle_update(req) and receive_extend_msg(extend_msg)
+// used in tail_handle_update(req), single_handle_update(req) and
+// receive_extend_msg(extend_msg)
 void ChainServer::insert_processed_list(const proto::Request& req) {
   auto it = processed_map_.find(req.req_id() + "_" + req.account_id());
   if (it == processed_map_.end()) {  // doesn't exist in processed list
@@ -715,6 +742,81 @@ void ChainServer::insert_processed_list(const proto::Request& req) {
     LOG(INFO) << "Server added request req_id=" << req.req_id()
               << ", bank_update_seq=" << req.bank_update_seq()
               << " to processed list" << endl << endl;
+  }
+}
+
+// used in tail_handle_update(req), single_handle_update(req)
+void ChainServer::handle_transfer(const proto::Request& req) {
+    if (req.check_result() == proto::Request::NEWREQ) {
+      insert_processed_list(req);
+      if (req.reply().outcome() == proto::Reply::PROCESSED) {
+        insert_sent_list(req);
+        forward_transfer_to_downstream(req);
+      }
+    }
+
+    if (req.reply().outcome() != proto::Reply::PROCESSED) {
+      // inconsistent or insufficient funds
+      reply_to_client(req);
+      return;
+    }
+
+    // handle duplicate request (outcome == processed)
+    // if has been processed by downstream (by checking sent_list), reply
+    // if in processing by downstream, do not reply
+    if (req.check_result() != proto::Request::NEWREQ) {
+      bool processing = false;
+      for (auto it = sent_list_.begin(); it != sent_list_.end(); ++it) {
+        if (it->req_id() == req.req_id() &&
+            it->account_id() == req.account_id()) {
+          processing = true;
+          break;
+        }
+      }
+      if (!processing)
+        reply_to_client(req);
+    }
+}
+
+void ChainServer::forward_transfer_to_downstream(const proto::Request& req) {
+  // make a copy and modify to transfer_to
+  proto::Request transfer_to_req = req;
+  transfer_to_req.set_type(proto::Request::TRANSFER_TO);
+  transfer_to_req.set_account_id(req.dest_account_id());
+  transfer_to_req.set_bank_id(req.dest_bank_id());
+  transfer_to_req.clear_check_result();
+  transfer_to_req.clear_dest_account_id();
+  transfer_to_req.clear_dest_bank_id();
+
+  // bank1's tail is client of bank2's head
+  proto::Address* local_addr = new proto::Address(local_addr_);
+  transfer_to_req.set_allocated_client_addr(local_addr);
+
+  proto::Address downstream_head = get_bank_head(req.dest_bank_id());
+  // TODO send_msg_seq++?
+  send_msg_tcp(downstream_head, proto::Message::REQUEST, transfer_to_req);
+}
+
+// receive transfer reply from downstream
+void ChainServer::receive_transfer_reply(proto::Reply *reply) {
+  assert(reply->outcome() == proto::Reply::PROCESSED);
+  // remove req in sent_list and reply
+  for (auto it = sent_list_.begin(); it != sent_list_.end(); ++it) {
+    if (it->req_id() == reply->req_id() &&
+        it->dest_account_id() == reply->account_id()) {
+      reply_to_client(*it);
+      LOG(INFO) << "Server removed transfer request req_id=" << it->req_id()
+                << ", bank_update_seq=" << it->bank_update_seq()
+                << " from sent list" << endl << endl;
+      sent_list_.erase(it);
+      // send ack until we processe all transfers
+      if (sent_list_.empty() && !ishead_) {
+        proto::Acknowledge ack;
+        ack.set_bank_update_seq(bank_update_seq_);
+        sendback_ack(ack);
+      }
+      break;
+    }
   }
 }
 
@@ -754,7 +856,6 @@ void ChainServer::write_log_reply(const proto::Reply& reply) {
             << endl << endl;
 }
 
-// TODO delayed server also delay heartbeat
 void heartbeat() {
   proto::Heartbeat hb;
   hb.set_bank_id(cs->bank_id());
@@ -805,6 +906,17 @@ int read_config_server(string dir, string bankid, int chainno) {
   srand((unsigned)time(0));
   bool find_bank = false;
   Json::Value bank_list_json = root[JSON_BANKS];
+  // generate bank_head_list
+  for (unsigned int i = 0; i < bank_list_json.size(); i++) {
+    Json::Value bank_json = bank_list_json[i];
+    Json::Value server_list_json = bank_json[JSON_SERVERS];
+    proto::Address head_addr;  // head server address
+    head_addr.set_ip(server_list_json[0][JSON_IP].asString());
+    head_addr.set_port(server_list_json[0][JSON_PORT].asInt());
+    auto it_head = cs->bank_head_list().insert(
+        std::make_pair(bank_json[JSON_BANKID].asString(), head_addr));
+    assert(it_head.second);
+  }
   for (unsigned int i = 0; i < bank_list_json.size(); i++) {
     if (bank_list_json[i][JSON_BANKID].asString() == bankid) {
       find_bank = true;

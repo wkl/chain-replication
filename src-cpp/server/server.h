@@ -69,6 +69,16 @@ class ChainServer {
   void receive_extend_msg(const proto::ExtendMsg& extend_msg);
   void extending_server_fail();
 
+  // transfer
+  proto::Address get_bank_head(const string& bankid) {
+      auto it_head = bank_head_list_.find(bankid);
+      assert(it_head != bank_head_list_.end());
+      return it_head->second;
+  }
+  void handle_transfer(const proto::Request& req);
+  void forward_transfer_to_downstream(const proto::Request& req);
+  void receive_transfer_reply(proto::Reply *reply);
+
   // getter/setter
   void set_bank_id(string bank_id) { bank_id_ = bank_id; };
   string bank_id() { return bank_id_; };
@@ -104,6 +114,7 @@ class ChainServer {
   deque<proto::Request>& sent_list() { return sent_list_; }
   void set_extend_send_delay(int extend_send_delay) { extend_send_delay_ = extend_send_delay; };
   int extend_send_delay() { return extend_send_delay_; };
+  unordered_map<string, proto::Address>& bank_head_list() { return bank_head_list_; };
 
  private:
   string bank_id_;

@@ -215,6 +215,8 @@ int read_config_client(string dir, vector<Client>& client_vector) {
           req.set_type(proto::Request::WITHDRAW);
         } else if (type == JSON_TRANSFER) {
           req.set_type(proto::Request::TRANSFER);
+          req.set_dest_bank_id(request_json[JSON_DEST_BANKID].asString());
+          req.set_dest_account_id(request_json[JSON_DEST_ACCOUNTID].asString());
         } else {
           ifs.close();
           LOG(ERROR) << "The type of the request with req_id=" << req.req_id()
@@ -227,10 +229,18 @@ int read_config_client(string dir, vector<Client>& client_vector) {
               << "reqid=" << req.req_id() << ", bankid=" << req.bank_id()
               << ", accountid=" << req.account_id() << ", req_type=" << type
               << endl << endl;
-        LOG_IF(INFO, type != JSON_QUERY)
+        LOG_IF(INFO, type == JSON_DEPOSIT || type == JSON_WITHDRAW)
               << "Request for client " << client.clientid() << ":" << endl
               << "reqid=" << req.req_id() << ", bankid=" << req.bank_id()
               << ", accountid=" << req.account_id() << ", req_type=" << type
+              << ", amount=" << req.amount() << endl << endl;
+        LOG_IF(INFO, type == JSON_TRANSFER)
+              << "Request for client " << client.clientid() << ":" << endl
+              << "reqid=" << req.req_id() << ", bankid=" << req.bank_id()
+              << ", accountid=" << req.account_id()
+              << ", dest_bankid=" << req.dest_bank_id()
+              << ", dest_accountid=" << req.dest_account_id()
+              << ", req_type=" << type
               << ", amount=" << req.amount() << endl << endl;
       }
     } else {  // generate requests randomly
@@ -279,12 +289,13 @@ int read_config_client(string dir, vector<Client>& client_vector) {
               << "reqid=" << req.req_id() << ", bankid=" << req.bank_id()
               << ", accountid=" << req.account_id()
               << ", req_type=" << typestr_map[type] << endl << endl;
-        LOG_IF(INFO, type != proto::Request::QUERY)
-              << "Request for client " << client.clientid() << ":" << endl
-              << "reqid=" << req.req_id() << ", bankid=" << req.bank_id()
-              << ", accountid=" << req.account_id()
-              << ", req_type=" << typestr_map[type]
-              << ", amount=" << req.amount() << endl << endl;
+        LOG_IF(INFO, (type == proto::Request::WITHDRAW ||
+                      type == proto::Request::DEPOSIT) && type)
+            << "Request for client " << client.clientid() << ":" << endl
+            << "reqid=" << req.req_id() << ", bankid=" << req.bank_id()
+            << ", accountid=" << req.account_id()
+            << ", req_type=" << typestr_map[type] << ", amount=" << req.amount()
+            << endl << endl;
         request_vector.push_back(req);
       }
     }
