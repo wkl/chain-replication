@@ -1,0 +1,121 @@
+{
+    "config": {
+        "server_report_interval": 1,
+        "server_fail_timeout": 3,
+        "udp_drop_interval": "0"
+    },
+    "master": {
+        "ip": "127.0.0.1",
+        "port": 50000
+    },
+    "banks": [
+        {
+            "bankid": "bank1",
+            "servers": [
+                {
+                    "ip": "127.0.0.1",
+                    "port": 50001,
+                    "chainno": 1,
+                    "startdelay": 0,
+                    "failscenario": "none"
+                },
+                {
+                    "ip": "127.0.0.1",
+                    "port": 50002,
+                    "chainno": 2,
+                    "startdelay": 0,
+                    "failscenario": "none"
+                },
+                {
+                    "ip": "127.0.0.1",
+                    "port": 50003,
+                    "chainno": 3,
+                    "startdelay": 0,
+                    "failscenario": "none"
+                }
+            ]
+        },
+        {
+            "bankid": "bank2",
+            "servers": [
+                {
+                    "ip": "127.0.0.1",
+                    "port": 50004,
+                    "chainno": 1,
+                    "startdelay": 0,
+                    "failscenario": "none"
+                },
+                {
+                    "ip": "127.0.0.1",
+                    "port": 50005,
+                    "chainno": 2,
+                    "startdelay": 0,
+                    "failscenario": "none"
+                },
+                {
+                    "ip": "127.0.0.1",
+                    "port": 50006,
+                    "chainno": 3,
+                    "startdelay": 0,
+                    "failscenario": "none"
+                }
+            ]
+        }
+    ],
+    "clients": [
+        {
+            "clientid": "client1",
+            "ip": "127.0.0.1",
+            "port": 60001,
+            "waittimeout": 2,
+            "resendnum": 5,
+            "resend_newhead": true,
+            "requests": [
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "seq": 1,
+                    "type": "DEPOSIT",
+                    "amount": 400
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "dest_bankid": "bank2",
+                    "dest_accountid": "account2",
+                    "seq": 2,
+                    "type": "TRANSFER",
+                    "amount": 300
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "dest_bankid": "bank2",
+                    "dest_accountid": "account2",
+                    "seq": 2,
+                    "type": "TRANSFER",
+                    "amount": 300
+                },
+                {
+                    "bankid": "bank2",
+                    "accountid": "account2",
+                    "seq": 3,
+                    "type": "WITHDRAW",
+                    "amount": 200
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "seq": 4,
+                    "type": "QUERY"
+                },
+                {
+                    "bankid": "bank2",
+                    "accountid": "account2",
+                    "seq": 5,
+                    "type": "QUERY"
+                }
+            ]
+        }
+    ]
+}
