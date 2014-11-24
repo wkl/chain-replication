@@ -52,8 +52,8 @@ void ChainServerTCPLoop::handle_msg(proto::Message& msg,
       break;
     case proto::Message::NEW_HEAD:
       assert(msg.has_notify());
-      assert(cs->istail());
-      // to be continued in transfer phase
+      // assert(cs->istail());
+      cs->handle_new_head(msg.notify());
       break;
     case proto::Message::TO_BE_TAIL:
       cs->to_be_tail();
@@ -100,12 +100,35 @@ void ChainServer::to_be_tail() {
   LOG(INFO) << "Notified to be tail server" << endl << endl;
   istail_ = true;
   bool ack_flag = false;
+
+  // move non-transfer request from sent_list to processed_list
+  auto it = sent_list_.begin();
+  while (it != sent_list_.end()) {
+    if (it->type() != proto::Request::TRANSFER) {
+      insert_processed_list(*it);
+      it = sent_list_.erase(it);
+      LOG(INFO) << "Server removed request req_id=" << it->req_id()
+                << ", bank_update_seq=" << it->bank_update_seq()
+                << " from sent list" << endl << endl;
+    } else {
+      it++;
+    }
+  }
+  if (sent_list_.empty()) {
+    ack_flag = true;
+  } else {
+    for (const auto& transfer_req : sent_list_)
+      forward_transfer_to_downstream(transfer_req);
+  }
+
+  /*
   while (!sent_list_.empty()) { // not reply to client, client will regard as reply lost
     proto::Request req = sent_list_.front();
     insert_processed_list(req);
     pop_sent_list();
     ack_flag = true;
   }
+  */
   if (!ishead_ && ack_flag) {
     proto::Acknowledge ack;
     ack.set_bank_update_seq(bank_update_seq_);
@@ -787,14 +810,20 @@ void ChainServer::forward_transfer_to_downstream(const proto::Request& req) {
   transfer_to_req.clear_check_result();
   transfer_to_req.clear_dest_account_id();
   transfer_to_req.clear_dest_bank_id();
+  transfer_to_req.clear_bank_update_seq();
 
   // bank1's tail is client of bank2's head
   proto::Address* local_addr = new proto::Address(local_addr_);
   transfer_to_req.set_allocated_client_addr(local_addr);
 
   proto::Address downstream_head = get_bank_head(req.dest_bank_id());
-  // TODO send_msg_seq++?
+  send_msg_seq++;
+  // send may fail due to crash of downstream's head, which will be notifed
   send_msg_tcp(downstream_head, proto::Message::REQUEST, transfer_to_req);
+  LOG(INFO) << "Server forwarding transfer request req_id=" << req.req_id()
+            << " to " << req.dest_bank_id() << " " << downstream_head.ip()
+            << ":" << downstream_head.port() << endl << endl;
+  if_server_crash();
 }
 
 // receive transfer reply from downstream
@@ -815,7 +844,25 @@ void ChainServer::receive_transfer_reply(proto::Reply *reply) {
         ack.set_bank_update_seq(bank_update_seq_);
         sendback_ack(ack);
       }
-      break;
+    }
+  }
+}
+
+// receive notification of new head server of a specific bank
+void ChainServer::handle_new_head(const proto::Notify& notify) {
+  const string& bank_id = notify.bank_id();
+  const proto::Address& server_addr = notify.server_addr();
+  auto it = bank_head_list_.find(bank_id);
+  assert(it != bank_head_list_.end());
+  it->second = server_addr;
+  LOG(INFO) << "Bank " << bank_id << "'s head server is changed to "
+            << server_addr.ip() << ":" << server_addr.port() << endl << endl;
+
+  if (istail_) {
+    for (const auto& req : sent_list_) {
+      assert(req.type() == proto::Request::TRANSFER);
+      if (req.dest_bank_id() == bank_id)
+        forward_transfer_to_downstream(req);
     }
   }
 }

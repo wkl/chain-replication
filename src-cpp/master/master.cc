@@ -152,9 +152,14 @@ void notify_crash(BankServerChain& bsc, Node& node) {
     for(const auto& it : master->client_list()) {
       send_msg_udp(master->addr(), it.second, proto::Message::NEW_HEAD, notify);
     }   
-    for(const auto& it : master->bank_server_chain()) {
-      BankServerChain tmp_bsc = it.second;
-      send_msg_tcp(tmp_bsc.tail(), proto::Message::NEW_HEAD, notify);
+    for(auto& it : master->bank_server_chain()) {
+      // XXX tail and head server may crash at the same time
+      // which means the new tail may not be ready here.
+      // we'd better notify all server about the new head.
+      for (auto& tmp_node : it.second.server_chain()) {
+        if (tmp_node != it.second.extending())
+          send_msg_tcp(tmp_node.addr(), proto::Message::NEW_HEAD, notify);
+      }
     }
     LOG(INFO) << "Notify all the clients and tail servers of the new head server" 
               << " of bank " << bsc.bank_id()

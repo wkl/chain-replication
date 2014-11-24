@@ -78,6 +78,7 @@ class ChainServer {
   void handle_transfer(const proto::Request& req);
   void forward_transfer_to_downstream(const proto::Request& req);
   void receive_transfer_reply(proto::Reply *reply);
+  void handle_new_head(const proto::Notify& notify);
 
   // getter/setter
   void set_bank_id(string bank_id) { bank_id_ = bank_id; };
