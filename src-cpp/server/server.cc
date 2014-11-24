@@ -830,20 +830,23 @@ void ChainServer::forward_transfer_to_downstream(const proto::Request& req) {
 void ChainServer::receive_transfer_reply(proto::Reply *reply) {
   assert(reply->outcome() == proto::Reply::PROCESSED);
   // remove req in sent_list and reply
-  for (auto it = sent_list_.begin(); it != sent_list_.end(); ++it) {
+  auto it = sent_list_.begin();
+  while (it != sent_list_.end()) {
     if (it->req_id() == reply->req_id() &&
         it->dest_account_id() == reply->account_id()) {
       reply_to_client(*it);
       LOG(INFO) << "Server removed transfer request req_id=" << it->req_id()
                 << ", bank_update_seq=" << it->bank_update_seq()
                 << " from sent list" << endl << endl;
-      sent_list_.erase(it);
+      it = sent_list_.erase(it);
       // send ack until we processe all transfers
       if (sent_list_.empty() && !ishead_) {
         proto::Acknowledge ack;
         ack.set_bank_update_seq(bank_update_seq_);
         sendback_ack(ack);
       }
+    } else {
+      it++;
     }
   }
 }
