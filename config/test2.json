@@ -25,11 +25,23 @@
                     "chainno": 2,
                     "startdelay": 0,
                     "failscenario": "none"
-                },
+                }
+            ]
+        },
+        {
+            "bankid": "bank2",
+            "servers": [
                 {
                     "ip": "127.0.0.1",
                     "port": 50003,
-                    "chainno": 3,
+                    "chainno": 1,
+                    "startdelay": 0,
+                    "failscenario": "none"
+                },
+                {
+                    "ip": "127.0.0.1",
+                    "port": 50004,
+                    "chainno": 2,
                     "startdelay": 0,
                     "failscenario": "none"
                 }
@@ -44,34 +56,70 @@
             "waittimeout": 2,
             "resendnum": 5,
             "resend_newhead": true,
+            "reqseed": {
+                "reqnum": 6,
+                "accountnum": 1,
+                "maxamount": 1000,
+                "probquery": 0,
+                "probwithdraw": 1,
+                "probdeposit": 2
+            }
+        },
+        {
+            "clientid": "client2",
+            "ip": "127.0.0.1",
+            "port": 60002,
+            "waittimeout": 2,
+            "resendnum": 5,
+            "resend_newhead": true,
+            "reqseed": {
+                "reqnum": 6,
+                "accountnum": 1,
+                "maxamount": 1000,
+                "probquery": 0,
+                "probwithdraw": 1,
+                "probdeposit": 2
+            }
+        },
+        {
+            "clientid": "client3",
+            "ip": "127.0.0.1",
+            "port": 60003,
+            "waittimeout": 2,
+            "resendnum": 4,
+            "resend_newhead": true,
             "requests": [
                 {
                     "bankid": "bank1",
                     "accountid": "account1",
                     "seq": 1,
                     "type": "DEPOSIT",
+                    "amount": 1000
+                },
+                {
+                    "bankid": "bank2",
+                    "accountid": "account1",
+                    "seq": 2,
+                    "type": "DEPOSIT",
+                    "amount": 1000
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "dest_bankid": "bank2",
+                    "dest_accountid": "account1",
+                    "seq": 3,
+                    "type": "TRANSFER",
                     "amount": 400
                 },
                 {
-                    "bankid": "bank1",
+                    "bankid": "bank2",
                     "accountid": "account1",
                     "dest_bankid": "bank1",
-                    "dest_accountid": "account2",
-                    "seq": 2,
-                    "type": "TRANSFER",
-                    "amount": 300
-                },
-                {
-                    "bankid": "bank1",
-                    "accountid": "account1",
-                    "seq": 3,
-                    "type": "QUERY"
-                },
-                {
-                    "bankid": "bank1",
-                    "accountid": "account2",
+                    "dest_accountid": "account1",
                     "seq": 4,
-                    "type": "QUERY"
+                    "type": "TRANSFER",
+                    "amount": 600
                 }
             ]
         }

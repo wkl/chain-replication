@@ -9,6 +9,42 @@ duplicate transfer & InsufficientFunds for transfer
 
 
 test2:
+master/master -c ../config/test2.json 
+server/server -c ../config/test2.json -b bank1 -n 1 
+server/server -c ../config/test2.json -b bank1 -n 2 
+server/server -c ../config/test2.json -b bank2 -n 1 
+server/server -c ../config/test2.json -b bank2 -n 2 
+
+pseudo-random deposits, withdrawals and transfer at same time
+
+
+test3: 
+master/master -c ../config/test3.json
+server/server -c ../config/test3.json -b bank1 -n 1
+server/server -c ../config/test3.json -b bank1 -n 2
+server/server -c ../config/test3.json -b bank1 -n 3
+server/server -c ../config/test3.json -b bank2 -n 1
+server/server -c ../config/test3.json -b bank2 -n 2
+server/server -c ../config/test3.json -b bank2 -n 3
+
+head of bank2 fails immediately after receiving the transfer request
+
+
+test4: 
+master/master -c ../config/test4.json
+server/server -c ../config/test4.json -b bank1 -n 1
+server/server -c ../config/test4.json -b bank1 -n 2
+server/server -c ../config/test4.json -b bank1 -n 3
+server/server -c ../config/test4.json -b bank2 -n 1
+server/server -c ../config/test4.json -b bank2 -n 2
+server/server -c ../config/test4.json -b bank2 -n 3
+
+the bank1 server s1 that sends the transfer request to head of bank2 fails
+immediately after sending it, and head of bank2 fails immediately after
+receiving it.
+
+
+test10:
 master/master -c ../config/test2.json
 server/server -c ../config/test2.json -b bank1 -n 1
 server/server -c ../config/test2.json -b bank1 -n 2
@@ -17,27 +53,3 @@ server/server -c ../config/test2.json -b bank1 -n 3
 transfer within same bank
 
 
-test3: 
-master/master -c ../config/test1.json
-server/server -c ../config/test1.json -b bank1 -n 1
-server/server -c ../config/test1.json -b bank1 -n 2
-server/server -c ../config/test1.json -b bank1 -n 3
-server/server -c ../config/test1.json -b bank2 -n 1
-server/server -c ../config/test1.json -b bank2 -n 2
-server/server -c ../config/test1.json -b bank2 -n 3
-
-head of bank2 fails immediately after receiving the transfer request
-
-
-test4: 
-master/master -c ../config/test1.json
-server/server -c ../config/test1.json -b bank1 -n 1
-server/server -c ../config/test1.json -b bank1 -n 2
-server/server -c ../config/test1.json -b bank1 -n 3
-server/server -c ../config/test1.json -b bank2 -n 1
-server/server -c ../config/test1.json -b bank2 -n 2
-server/server -c ../config/test1.json -b bank2 -n 3
-
-the bank1 server s1 that sends the transfer request to head of bank2 fails
-immediately after sending it, and head of bank2 fails immediately after
-receiving it.

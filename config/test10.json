@@ -31,34 +31,6 @@
                     "port": 50003,
                     "chainno": 3,
                     "startdelay": 0,
-                    "failscenario": "fail_after_send",
-		            "failseq": "3"
-                }
-            ]
-        },
-        {
-            "bankid": "bank2",
-            "servers": [
-                {
-                    "ip": "127.0.0.1",
-                    "port": 50004,
-                    "chainno": 1,
-                    "startdelay": 0,
-                    "failscenario": "fail_after_recv",
-		            "failseq": "1"
-                },
-                {
-                    "ip": "127.0.0.1",
-                    "port": 50005,
-                    "chainno": 2,
-                    "startdelay": 0,
-                    "failscenario": "none"
-                },
-                {
-                    "ip": "127.0.0.1",
-                    "port": 50006,
-                    "chainno": 3,
-                    "startdelay": 0,
                     "failscenario": "none"
                 }
             ]
@@ -83,7 +55,7 @@
                 {
                     "bankid": "bank1",
                     "accountid": "account1",
-                    "dest_bankid": "bank2",
+                    "dest_bankid": "bank1",
                     "dest_accountid": "account2",
                     "seq": 2,
                     "type": "TRANSFER",
@@ -96,7 +68,7 @@
                     "type": "QUERY"
                 },
                 {
-                    "bankid": "bank2",
+                    "bankid": "bank1",
                     "accountid": "account2",
                     "seq": 4,
                     "type": "QUERY"
