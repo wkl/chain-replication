@@ -56,12 +56,3 @@ server/server -c ../config/test$1.json -b bank3 -n 3
 3 banks and 6 clients/bank
 
 
-test10:
-master/master -c ../config/test2.json
-server/server -c ../config/test2.json -b bank1 -n 1
-server/server -c ../config/test2.json -b bank1 -n 2
-server/server -c ../config/test2.json -b bank1 -n 3
-
-transfer within same bank
-
-
