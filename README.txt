@@ -104,7 +104,7 @@ CONTRIBUTIONS
 
 C++
 - Communication (Kelong)
-- Master/Server/Client state machine (Dandan)
+- Master/Server/Client state machine (Dandan, Kelong)
 - Logging (Dandan)
 - Configuration (Dandan)
 
