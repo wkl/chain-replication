@@ -95,7 +95,13 @@
                     "accountid": "account1",
                     "seq": 3,
                     "type": "QUERY"
-                }
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account1",
+                    "seq": 4,
+                    "type": "QUERY"
+                }                
             ]
         },
         {
@@ -125,7 +131,13 @@
                     "accountid": "account2",
                     "seq": 3,
                     "type": "QUERY"
-                }
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account2",
+                    "seq": 4,
+                    "type": "QUERY"
+                }                
             ]
         },
         {
@@ -155,7 +167,13 @@
                     "accountid": "account3",
                     "seq": 3,
                     "type": "QUERY"
-                }
+                },
+                {
+                    "bankid": "bank1",
+                    "accountid": "account3",
+                    "seq": 4,
+                    "type": "QUERY"
+                }                
             ]
         },
         {
@@ -287,7 +305,13 @@
                     "accountid": "account1",
                     "seq": 3,
                     "type": "QUERY"
-                }
+                },
+                {
+                    "bankid": "bank2",
+                    "accountid": "account1",
+                    "seq": 4,
+                    "type": "QUERY"
+                }                
             ]
         },
         {
@@ -317,7 +341,13 @@
                     "accountid": "account2",
                     "seq": 3,
                     "type": "QUERY"
-                }
+                },
+                {
+                    "bankid": "bank2",
+                    "accountid": "account2",
+                    "seq": 4,
+                    "type": "QUERY"
+                }                
             ]
         },
         {
@@ -347,7 +377,13 @@
                     "accountid": "account3",
                     "seq": 3,
                     "type": "QUERY"
-                }
+                },
+                {
+                    "bankid": "bank2",
+                    "accountid": "account3",
+                    "seq": 4,
+                    "type": "QUERY"
+                }                
             ]
         },
         {
@@ -479,7 +515,13 @@
                     "accountid": "account1",
                     "seq": 3,
                     "type": "QUERY"
-                }
+                },
+                {
+                    "bankid": "bank3",
+                    "accountid": "account1",
+                    "seq": 4,
+                    "type": "QUERY"
+                }                
             ]
         },
         {
@@ -509,7 +551,13 @@
                     "accountid": "account2",
                     "seq": 3,
                     "type": "QUERY"
-                }
+                },
+                {
+                    "bankid": "bank3",
+                    "accountid": "account2",
+                    "seq": 4,
+                    "type": "QUERY"
+                }                
             ]
         },
         {
@@ -539,7 +587,13 @@
                     "accountid": "account3",
                     "seq": 3,
                     "type": "QUERY"
-                }
+                },
+                {
+                    "bankid": "bank3",
+                    "accountid": "account3",
+                    "seq": 4,
+                    "type": "QUERY"
+                }                
             ]
         },
         {
