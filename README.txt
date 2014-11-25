@@ -1,6 +1,8 @@
 INSTRUCTIONS
 ------------
 
+(Phase 4 is implemented with C++)
+
 [Dependency: C++]
 
 - Autotools / pkg-config
@@ -88,56 +90,13 @@ MAIN FILES
 ----------
 
 src-cpp/
-  master/master.{h,cc}	# Chain server code
+  master/master.{h,cc}	# Master server code
   server/server.{h,cc}	# Chain server code
   client/client.{h,cc}	# Client code
   common/message.{h,cc,proto}	# Communication
   common/{bank,account,common}.h	# Misc
 src-da/
-  chain.da	# Distalgo code for Chain server and client
-
-
-BUGS AND LIMITATIONS
---------------------
-
-- The send() in Distalgo always succeeds even though the destination is down.
-  This behavior impacts how we implement aborting extending gracefully.
-
-LANGUAGE COMPARISON
--------------------
-
-- Size (including comments, empty lines)
-Distalgo: 1000 lines
-C++: 3000 lines
-
-- Development
-To begin with C++, we have to take care of low-level communication stuffs.
-We spend some time to investigate the existing framework and build a simple RPC
-based on protobuf and Boost.Asio. For the miscellaneous utilities, we use the
-existing libraries as much as we can. With these popular libraries and
-Autotools to integrate them, it is efficient to develop once we become familiar
-with them after some time and effort.
-
-About Distalgo, there are some examples to start with. After a quick learning,
-one can focus on the algorithm implementation without worrying about socket,
-data packing or event model. It is quite smooth to develop in this phase.
-Of course, the data structure in Python is simpler to manipulate than C++.
-
-- Debug
-The debug procedure in both language is similar: run and inspect the log files.
-In C++, we use shell scripts to run the processes. We feel it is more convenient
-to manage the processes in Distalgo. But the Process name in terms of TCP
-address is not that meaningful when the number of processes is large, so we
-encapsulate the Process inside a new class 'Node' to make the instances in log
-file more readable. Concise and clean logging format help us a lot.
-
-- Other
-Python syntax as well as Distalgo syntax we use are definitely more readable
-and more similar to pseudo-code than C++ (actually we write our pseudo-code in
-Python-like syntax). The message sending and receiving handling in Distalgo are
-well placed and intuitive to read but we can not find a place to perform certain
-routine in all "receive" functions (say we want to increase message counter in
-each receiving).
+  chain.da	# Distalgo code for Master, Chain server and Client
 
 
 CONTRIBUTIONS
