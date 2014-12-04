@@ -853,14 +853,14 @@ class ClientConfig:
                 print('req_id=%s, bank_id=%s, account_id=%s, amount=%d, req_type=%s' % (
                   req_id, bank_id, account_id, amount, req_type))
 
-        drop_interval = json_client.get(JSON_UDP_DROP_INTERVAL)
+        drop_interval = common_config_json.get(JSON_UDP_DROP_INTERVAL)
         if drop_interval:
             if drop_interval == JSON_RANDOM:
                 self.drop_interval = random.randint(2, len(self.request_list) - 1)
                 print("%s drop reply interval is %d" %
                        (self.client_id, self.drop_interval))
             else:
-                self.drop_interval = int(seq)
+                self.drop_interval = int(drop_interval)
         else:
             self.drop_interval = 0
 
