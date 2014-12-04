@@ -3,8 +3,8 @@ INSTRUCTIONS
 
 [Dependency: C++]
 
-- Autotools / pkg-config
-- Clang (v3.4.0 is known to work) / GCC (v4.8.2 is known to work)
+- Autotools, Libtool, pkg-config
+- Clang (v3.4.0 is known to work) or GCC (v4.8.2 is known to work)
 - Boost (v1.54.0 is known to work)
 - Protocol Buffers (v2.5.0 is known to work)
 - JsonCpp (v0.5.0 is known to work)
@@ -29,6 +29,12 @@ Fedora:
 	$ sudo yum install protobuf-compiler protobuf-devel
 	$ sudo yum install jsoncpp-devel
 	$ sudo yum install glog-devel
+FreeBSD:
+	$ sudo pkg install boost-libs
+	$ sudo pkg install protobuf
+	$ sudo pkg install jsoncpp
+	[https://gist.github.com/wkl/e8c8157cb5da10bcc061 pkg-config file]
+	$ sudo pkg install glog
 
 2. Build from git repo
 
