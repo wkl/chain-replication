@@ -35,7 +35,7 @@ server/server -c ../config/test5.json -b bank1 -n 1
 server/server -c ../config/test5.json -b bank1 -n 2
 server/server -c ../config/test5.json -b bank1 -n 3
 
-origianl chain length is 3, internal 2nd server fails after receiving 2 msgs
+original chain length is 3, internal 2nd server fails after receiving 2 msgs
 
 
 

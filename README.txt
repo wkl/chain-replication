@@ -1,8 +1,6 @@
 INSTRUCTIONS
 ------------
 
-(Phase 4 is implemented with C++)
-
 [Dependency: C++]
 
 - Autotools / pkg-config
@@ -121,4 +119,6 @@ Common / Misc
 OTHER COMMENTS
 --------------
 
-- Pseudo-code may be not updated.
+- Pseudo-code is not updated.
+- Distalgo currently does not run on OS X.
+- Phase 4 is implemented with C++.

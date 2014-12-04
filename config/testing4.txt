@@ -15,7 +15,7 @@ server/server -c ../config/test2.json -b bank1 -n 2
 server/server -c ../config/test2.json -b bank2 -n 1 
 server/server -c ../config/test2.json -b bank2 -n 2 
 
-pseudo-random deposits, withdrawals and transfer at same time
+pseudo-random deposits, withdraws and transfer at same time
 
 
 test3: 
